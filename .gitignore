@@ -1,0 +1,40 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# builds
+dist/
+build/
+*.tsbuildinfo
+.turbo/
+
+# tests / coverage
+coverage/
+*.lcov
+
+# env / secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# sqlite databases (data is per-deployment, never committed)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+data/
+
+# logs
+*.log
+logs/
+npm-debug.log*
+pnpm-debug.log*
+
+# editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.example.json
