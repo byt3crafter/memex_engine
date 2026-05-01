@@ -1,4 +1,5 @@
 import type { Db } from '@pantrymind/db';
+import type { Clock } from '../util/time';
 import { createFoodEventService, type FoodEventService } from './food-event';
 import { createMenuService, type MenuService } from './menu';
 import { createPantryService, type PantryService } from './pantry';
@@ -25,9 +26,21 @@ export interface Services {
   pattern: PatternService;
 }
 
-export function createServices(db: Db): Services {
+export interface CreateServicesOptions {
+  clock?: Clock;
+  defaultTimezone?: string;
+}
+
+export function createServices(db: Db, options: CreateServicesOptions = {}): Services {
+  const clock = options.clock;
   return {
-    profile: createProfileService(db),
+    profile: createProfileService({
+      db,
+      ...(clock !== undefined ? { clock } : {}),
+      ...(options.defaultTimezone !== undefined
+        ? { defaultTimezone: options.defaultTimezone }
+        : {}),
+    }),
     pantry: createPantryService(db),
     foodEvent: createFoodEventService(db),
     recommendation: createRecommendationService(db),

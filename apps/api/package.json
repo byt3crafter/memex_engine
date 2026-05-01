@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
+    "@hono/zod-validator": "^0.4.2",
     "@pantrymind/core": "workspace:*",
     "@pantrymind/db": "workspace:*",
     "@pantrymind/schemas": "workspace:*",

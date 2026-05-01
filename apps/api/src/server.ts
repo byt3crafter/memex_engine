@@ -6,6 +6,7 @@ import { authMiddleware } from './middleware/auth';
 import { errorHandler } from './middleware/error';
 import { loggerMiddleware } from './middleware/logger';
 import { healthRouter } from './routes/health';
+import { profileRouter } from './routes/profile';
 import { versionRouter } from './routes/version';
 
 export interface AppDeps {
@@ -26,6 +27,7 @@ export function createApp(deps: AppDeps): Hono {
   const v1 = new Hono();
   v1.use('*', authMiddleware(deps.config.apiToken));
   v1.route('/version', versionRouter);
+  v1.route('/profile', profileRouter(deps.services));
   app.route('/api/v1', v1);
 
   return app;
