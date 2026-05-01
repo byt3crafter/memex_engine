@@ -1,0 +1,31 @@
+{
+  "name": "@memex/kernel",
+  "version": "0.0.1-alpha",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./config": "./src/config.ts",
+    "./module": "./src/module.ts",
+    "./util": "./src/util/index.ts",
+    "./cards": "./src/cards.ts"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@memex/db": "workspace:*",
+    "@memex/schemas": "workspace:*",
+    "hono": "^4.6.14",
+    "pino": "^9.5.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.8"
+  }
+}

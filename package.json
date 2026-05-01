@@ -1,0 +1,36 @@
+{
+  "name": "memex",
+  "version": "0.0.1-alpha",
+  "description": "Self-hostable, multi-user, AI-native personal-data kernel. Pluggable modules (Demeter for food, Hypnos for sleep, ...) share data and connect to any AI assistant via MCP or REST.",
+  "license": "MIT",
+  "author": "Ludovic Micinthe",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "prettier --check \"**/*.{ts,tsx,js,mjs,json,md,yml,yaml}\" --ignore-path .gitignore",
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,md,yml,yaml}\" --ignore-path .gitignore",
+    "test": "turbo run test",
+    "test:unit": "turbo run test:unit",
+    "test:api": "pnpm --filter @memex/api test",
+    "test:mcp": "pnpm --filter @memex/mcp test",
+    "test:e2e": "pnpm --filter @memex/api test:e2e",
+    "db:migrate": "pnpm --filter @memex/api migrate",
+    "db:seed": "pnpm --filter @memex/api seed",
+    "demo:dry-run": "pnpm --filter @memex/api demo:dry-run",
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
+    "clean": "turbo run clean && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "prettier": "^3.4.0",
+    "turbo": "^2.3.0",
+    "typescript": "^5.7.0"
+  }
+}
