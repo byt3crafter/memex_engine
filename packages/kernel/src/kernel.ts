@@ -12,6 +12,10 @@ import { CardSchemaRegistry, type CardSchemaContribution } from './cards';
 import type { AppConfig } from './config';
 import type { KernelHandle, Module, ModuleContext } from './module';
 import { ModuleRegistry } from './registry';
+import { createConnectionService, type ConnectionService } from './services/connection';
+import { createPairingService, type PairingService } from './services/pairing';
+import { createUserService, type UserService } from './services/user';
+import type { Clock } from './util/time';
 
 export interface CreateKernelOptions {
   config: AppConfig;
@@ -24,6 +28,13 @@ export interface CreateKernelOptions {
   // narrow back via registry.require<S>(id).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   modules: readonly Module<any>[];
+  clock?: Clock;
+}
+
+export interface KernelServices {
+  users: UserService;
+  connections: ConnectionService;
+  pairing: PairingService;
 }
 
 export interface Kernel {
@@ -32,10 +43,11 @@ export interface Kernel {
   logger: Logger;
   modules: ModuleRegistry;
   cards: CardSchemaRegistry;
+  services: KernelServices;
 }
 
 export async function createKernel(options: CreateKernelOptions): Promise<Kernel> {
-  const { config, db, logger, modules } = options;
+  const { config, db, logger, modules, clock } = options;
   const registry = new ModuleRegistry();
   const cards = new CardSchemaRegistry();
 
@@ -93,7 +105,21 @@ export async function createKernel(options: CreateKernelOptions): Promise<Kernel
     );
   }
 
-  return { config, db, logger, modules: registry, cards };
+  // 5. Wire kernel-level services (user, connection, pairing).
+  const users = createUserService({ db, ...(clock !== undefined ? { clock } : {}) });
+  const connections = createConnectionService({
+    db,
+    ...(clock !== undefined ? { clock } : {}),
+  });
+  const pairing = createPairingService({
+    db,
+    connections,
+    baseUrl: config.baseUrl,
+    ...(clock !== undefined ? { clock } : {}),
+  });
+  const services: KernelServices = { users, connections, pairing };
+
+  return { config, db, logger, modules: registry, cards, services };
 }
 
 function registerCard(registry: CardSchemaRegistry, card: CardSchemaContribution): void {

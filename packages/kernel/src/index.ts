@@ -3,4 +3,5 @@ export * from './module';
 export * from './registry';
 export * from './cards';
 export * from './kernel';
+export * from './services/index';
 export * from './util/index';
