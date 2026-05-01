@@ -34,6 +34,9 @@ importers:
       '@memex/kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
+      '@memex/module-food':
+        specifier: workspace:*
+        version: link:../../packages/modules/food
       '@memex/schemas':
         specifier: workspace:*
         version: link:../../packages/schemas
@@ -106,6 +109,40 @@ importers:
         specifier: ^3.24.1
         version: 3.25.76
     devDependencies:
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.19.17)
+
+  packages/modules/food:
+    dependencies:
+      '@hono/zod-validator':
+        specifier: ^0.4.2
+        version: 0.4.3(hono@4.12.16)(zod@3.25.76)
+      '@memex/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@memex/kernel':
+        specifier: workspace:*
+        version: link:../../kernel
+      '@memex/schemas':
+        specifier: workspace:*
+        version: link:../../schemas
+      drizzle-orm:
+        specifier: ^0.36.4
+        version: 0.36.4(@libsql/client@0.14.0)
+      hono:
+        specifier: ^4.6.14
+        version: 4.12.16
+      zod:
+        specifier: ^3.24.1
+        version: 3.25.76
+    devDependencies:
+      drizzle-kit:
+        specifier: ^0.28.1
+        version: 0.28.1
       typescript:
         specifier: ^5.7.0
         version: 5.9.3

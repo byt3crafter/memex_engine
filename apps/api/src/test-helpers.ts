@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createDb } from '@memex/db';
 import { createKernel, loadConfig, type Kernel } from '@memex/kernel';
+import { foodModule } from '@memex/module-food';
 import type { Hono } from 'hono';
 import { pino } from 'pino';
 import { createApp } from './server';
@@ -28,7 +29,7 @@ export async function setupApiHarness(): Promise<ApiHarness> {
   );
   const { db, client } = createDb({ url: `file:${dbPath}` });
   const logger = pino({ level: 'silent' });
-  const kernel = await createKernel({ config, db, logger, modules: [] });
+  const kernel = await createKernel({ config, db, logger, modules: [foodModule] });
   const app = createApp({ kernel, logger });
 
   const baseRequest = async (path: string, init: RequestInit = {}): Promise<Response> => {

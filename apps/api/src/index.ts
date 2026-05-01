@@ -3,6 +3,7 @@ import { dirname } from 'node:path';
 import { serve } from '@hono/node-server';
 import { createDb } from '@memex/db';
 import { createKernel, loadConfig } from '@memex/kernel';
+import { foodModule } from '@memex/module-food';
 import { pino } from 'pino';
 import { createApp } from './server';
 
@@ -27,7 +28,7 @@ const kernel = await createKernel({
   config,
   db,
   logger,
-  modules: [],
+  modules: [foodModule],
 });
 
 const app = createApp({ kernel, logger });
