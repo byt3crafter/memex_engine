@@ -4,10 +4,7 @@ import { createMenuService, type MenuService } from './menu';
 import { createPantryService, type PantryService } from './pantry';
 import { createPatternService, type PatternService } from './pattern';
 import { createProfileService, type ProfileService } from './profile';
-import {
-  createRecommendationService,
-  type RecommendationService,
-} from './recommendation';
+import { createRecommendationService, type RecommendationService } from './recommendation';
 import { createRecipeService, type RecipeService } from './recipe';
 
 export * from './food-event';

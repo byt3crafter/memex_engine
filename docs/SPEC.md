@@ -226,7 +226,7 @@ Create normalized but practical tables.
 - `name`
 - `normalized_name`
 - `category`: `protein | carb | vegetable | fruit | dairy | fat | snack |
-  drink | condiment | other`
+drink | condiment | other`
 - `quantity` nullable
 - `unit` nullable
 - `expiry_date` nullable
@@ -243,7 +243,7 @@ Represents any food-related event. This is automatic capture.
 - `id`
 - `user_id`
 - `event_type`: `craving | availability_update | recommendation |
-  actual_meal | purchase | snack | drink | recipe_candidate | note`
+actual_meal | purchase | snack | drink | recipe_candidate | note`
 - `occurred_at`
 - `source`: `assistant | api | web | import | photo | receipt`
 - `raw_text` nullable
@@ -267,7 +267,7 @@ Items / components inside an event.
 - `name`
 - `normalized_name`
 - `role`: `ingredient | protein | carb | vegetable | fruit | fat | sauce
-  | drink | dessert | snack | other`
+| drink | dessert | snack | other`
 - `quantity` nullable
 - `unit` nullable
 - `calories_estimated` nullable
@@ -446,7 +446,7 @@ Implement versioned routes under `/api/v1`.
 
 1. **`log_checkin`** — Input: mood, energy, hunger, cravings, sleep,
    alcohol_yes_no, smoking_count_optional, notes. Output: structured card
-   + saved record id.
+   - saved record id.
 2. **`update_pantry`** — Input: items array (name, quantity, unit,
    category, source, expiry). Output: pantry summary card.
 3. **`list_available_food`** — Input: filters optional. Output: available
@@ -672,7 +672,7 @@ A developer should be able to:
 - Make small, meaningful commits after each completed phase.
 - Conventional Commit style messages
   (`feat: …`, `fix: …`, `chore: …`, `docs: …`, `test: …`, `refactor:
-  …`).
+…`).
 - Maintain `CHANGELOG.md` summarizing each phase.
 - Before declaring any phase complete, run the relevant tests and
   include the command / output summary in the implementation log.

@@ -129,8 +129,7 @@ curl -X POST http://localhost:8787/api/v1/recommendations/meal \
 ```
 
 The response includes a `card` field — that is the rendered
-recommendation. Pass it directly into a Web Component renderer (Phase
-6) or into the assistant's UI as structured content.
+recommendation. Pass it directly into a Web Component renderer (Phase 6) or into the assistant's UI as structured content.
 
 ---
 
@@ -144,7 +143,7 @@ recommendation. Pass it directly into a Web Component renderer (Phase
 5. **You**: "I had the chicken rice bowl."
 6. **Assistant** → calls `log_actual_meal` with the chosen
    recommendation id and any portion notes.
-7. *Later, after you've eaten:*
+7. _Later, after you've eaten:_
 8. **You**: "Felt great, full but not heavy, energy is good."
 9. **Assistant** → calls `log_meal_outcome` with satisfaction,
    `hunger_after`, `energy_after`.

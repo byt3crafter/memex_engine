@@ -19,10 +19,7 @@ export const exerciseEvent = sqliteTable(
     createdAt: text('created_at').notNull(),
   },
   (table) => ({
-    userOccurredIdx: index('exercise_event_user_occurred_idx').on(
-      table.userId,
-      table.occurredAt,
-    ),
+    userOccurredIdx: index('exercise_event_user_occurred_idx').on(table.userId, table.occurredAt),
   }),
 );
 

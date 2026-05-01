@@ -1,10 +1,5 @@
 import { z } from 'zod';
-import {
-  idSchema,
-  isoDateTimeSchema,
-  jsonValueSchema,
-  score1to5Schema,
-} from './common.js';
+import { idSchema, isoDateTimeSchema, jsonValueSchema, score1to5Schema } from './common.js';
 
 export const exerciseTypeSchema = z.enum(['home', 'gym', 'walk', 'other']);
 export type ExerciseType = z.infer<typeof exerciseTypeSchema>;

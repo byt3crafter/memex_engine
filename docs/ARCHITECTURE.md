@@ -48,7 +48,7 @@ lives in exactly one place.
 2. **One Zod schema, three uses.** Same schema validates HTTP request
    bodies, MCP tool inputs, and generates OpenAPI. One source of truth.
 3. **Event-sourced food log.** `food_event` rows are append-only.
-   Recipes, menus, and patterns are *projections* — recomputable when
+   Recipes, menus, and patterns are _projections_ — recomputable when
    the recommendation engine improves.
 4. **Cards are first-class output.** Every domain action returns both
    raw data and a renderable `card` JSON blob. Card schema is versioned
@@ -62,23 +62,23 @@ lives in exactly one place.
 
 ## Stack
 
-| Layer | Pick | Rationale |
-| --- | --- | --- |
-| Runtime | Node.js 22 + TypeScript strict | LTS-track, mature, good tooling. |
-| HTTP | Hono | Lighter than Fastify, runs on Node/Bun/Workers, built-in `app.request()` for tests. |
-| Validation | Zod 3 | Single schema → REST + MCP + OpenAPI + TS types. |
-| DB | libSQL (SQLite fork) | Self-hostable, embeddable, optional remote replication. |
-| ORM | Drizzle ORM | Typed queries, no runtime overhead, painless migrations. |
-| Vector | sqlite-vec extension | Local embeddings stored alongside data; no separate vector DB. |
-| Embeddings | `@xenova/transformers` | Local sentence-transformers; no cloud calls required. |
-| MCP | `@modelcontextprotocol/sdk` | Official TS SDK; tools / resources / prompts. |
-| Tests | Vitest | ESM-native, fast, watch mode. |
-| Logger | Pino | Structured JSON, fast, ergonomic. |
-| Monorepo | pnpm workspaces + Turborepo | Workspaces for code, Turbo for cached builds. |
-| API docs | `@hono/zod-openapi` | OpenAPI generated from the same Zod schemas as the routes. |
-| Docs site | Astro + Starlight | Static, fast, content-first. |
-| Cards lib | Lit (post-MVP) | Web Components, framework-agnostic, ~30KB bundle. |
-| PWA shell | SvelteKit (post-MVP) | Smallest output, simplest model, plays well with Lit. |
+| Layer      | Pick                           | Rationale                                                                           |
+| ---------- | ------------------------------ | ----------------------------------------------------------------------------------- |
+| Runtime    | Node.js 22 + TypeScript strict | LTS-track, mature, good tooling.                                                    |
+| HTTP       | Hono                           | Lighter than Fastify, runs on Node/Bun/Workers, built-in `app.request()` for tests. |
+| Validation | Zod 3                          | Single schema → REST + MCP + OpenAPI + TS types.                                    |
+| DB         | libSQL (SQLite fork)           | Self-hostable, embeddable, optional remote replication.                             |
+| ORM        | Drizzle ORM                    | Typed queries, no runtime overhead, painless migrations.                            |
+| Vector     | sqlite-vec extension           | Local embeddings stored alongside data; no separate vector DB.                      |
+| Embeddings | `@xenova/transformers`         | Local sentence-transformers; no cloud calls required.                               |
+| MCP        | `@modelcontextprotocol/sdk`    | Official TS SDK; tools / resources / prompts.                                       |
+| Tests      | Vitest                         | ESM-native, fast, watch mode.                                                       |
+| Logger     | Pino                           | Structured JSON, fast, ergonomic.                                                   |
+| Monorepo   | pnpm workspaces + Turborepo    | Workspaces for code, Turbo for cached builds.                                       |
+| API docs   | `@hono/zod-openapi`            | OpenAPI generated from the same Zod schemas as the routes.                          |
+| Docs site  | Astro + Starlight              | Static, fast, content-first.                                                        |
+| Cards lib  | Lit (post-MVP)                 | Web Components, framework-agnostic, ~30KB bundle.                                   |
+| PWA shell  | SvelteKit (post-MVP)           | Smallest output, simplest model, plays well with Lit.                               |
 
 ## Repository layout
 

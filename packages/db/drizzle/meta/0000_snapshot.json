@@ -176,33 +176,22 @@
       "indexes": {
         "pantry_item_user_idx": {
           "name": "pantry_item_user_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         },
         "pantry_item_normalized_idx": {
           "name": "pantry_item_normalized_idx",
-          "columns": [
-            "user_id",
-            "normalized_name"
-          ],
+          "columns": ["user_id", "normalized_name"],
           "isUnique": false
         },
         "pantry_item_category_idx": {
           "name": "pantry_item_category_idx",
-          "columns": [
-            "user_id",
-            "category"
-          ],
+          "columns": ["user_id", "category"],
           "isUnique": false
         },
         "pantry_item_available_idx": {
           "name": "pantry_item_available_idx",
-          "columns": [
-            "user_id",
-            "is_available"
-          ],
+          "columns": ["user_id", "is_available"],
           "isUnique": false
         }
       },
@@ -211,12 +200,8 @@
           "name": "pantry_item_user_id_user_profile_id_fk",
           "tableFrom": "pantry_item",
           "tableTo": "user_profile",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -344,18 +329,12 @@
       "indexes": {
         "food_event_user_occurred_idx": {
           "name": "food_event_user_occurred_idx",
-          "columns": [
-            "user_id",
-            "occurred_at"
-          ],
+          "columns": ["user_id", "occurred_at"],
           "isUnique": false
         },
         "food_event_type_idx": {
           "name": "food_event_type_idx",
-          "columns": [
-            "user_id",
-            "event_type"
-          ],
+          "columns": ["user_id", "event_type"],
           "isUnique": false
         }
       },
@@ -364,12 +343,8 @@
           "name": "food_event_user_id_user_profile_id_fk",
           "tableFrom": "food_event",
           "tableTo": "user_profile",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -483,16 +458,12 @@
       "indexes": {
         "food_event_item_event_idx": {
           "name": "food_event_item_event_idx",
-          "columns": [
-            "food_event_id"
-          ],
+          "columns": ["food_event_id"],
           "isUnique": false
         },
         "food_event_item_name_idx": {
           "name": "food_event_item_name_idx",
-          "columns": [
-            "normalized_name"
-          ],
+          "columns": ["normalized_name"],
           "isUnique": false
         }
       },
@@ -501,12 +472,8 @@
           "name": "food_event_item_food_event_id_food_event_id_fk",
           "tableFrom": "food_event_item",
           "tableTo": "food_event",
-          "columnsFrom": [
-            "food_event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["food_event_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -620,10 +587,7 @@
       "indexes": {
         "recommendation_user_requested_idx": {
           "name": "recommendation_user_requested_idx",
-          "columns": [
-            "user_id",
-            "requested_at"
-          ],
+          "columns": ["user_id", "requested_at"],
           "isUnique": false
         }
       },
@@ -632,12 +596,8 @@
           "name": "recommendation_user_id_user_profile_id_fk",
           "tableFrom": "recommendation",
           "tableTo": "user_profile",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -645,12 +605,8 @@
           "name": "recommendation_food_event_id_food_event_id_fk",
           "tableFrom": "recommendation",
           "tableTo": "food_event",
-          "columnsFrom": [
-            "food_event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["food_event_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -744,16 +700,12 @@
       "indexes": {
         "meal_outcome_event_idx": {
           "name": "meal_outcome_event_idx",
-          "columns": [
-            "food_event_id"
-          ],
+          "columns": ["food_event_id"],
           "isUnique": false
         },
         "meal_outcome_user_idx": {
           "name": "meal_outcome_user_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         }
       },
@@ -762,12 +714,8 @@
           "name": "meal_outcome_user_id_user_profile_id_fk",
           "tableFrom": "meal_outcome",
           "tableTo": "user_profile",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -775,12 +723,8 @@
           "name": "meal_outcome_food_event_id_food_event_id_fk",
           "tableFrom": "meal_outcome",
           "tableTo": "food_event",
-          "columnsFrom": [
-            "food_event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["food_event_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -916,18 +860,12 @@
       "indexes": {
         "recipe_user_active_idx": {
           "name": "recipe_user_active_idx",
-          "columns": [
-            "user_id",
-            "is_active"
-          ],
+          "columns": ["user_id", "is_active"],
           "isUnique": false
         },
         "recipe_title_idx": {
           "name": "recipe_title_idx",
-          "columns": [
-            "user_id",
-            "title"
-          ],
+          "columns": ["user_id", "title"],
           "isUnique": false
         }
       },
@@ -936,12 +874,8 @@
           "name": "recipe_user_id_user_profile_id_fk",
           "tableFrom": "recipe",
           "tableTo": "user_profile",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -949,12 +883,8 @@
           "name": "recipe_source_food_event_id_food_event_id_fk",
           "tableFrom": "recipe",
           "tableTo": "food_event",
-          "columnsFrom": [
-            "source_food_event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["source_food_event_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1047,10 +977,7 @@
       "indexes": {
         "menu_plan_user_start_idx": {
           "name": "menu_plan_user_start_idx",
-          "columns": [
-            "user_id",
-            "start_date"
-          ],
+          "columns": ["user_id", "start_date"],
           "isUnique": false
         }
       },
@@ -1059,12 +986,8 @@
           "name": "menu_plan_user_id_user_profile_id_fk",
           "tableFrom": "menu_plan",
           "tableTo": "user_profile",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1136,10 +1059,7 @@
       "indexes": {
         "measurement_user_measured_idx": {
           "name": "measurement_user_measured_idx",
-          "columns": [
-            "user_id",
-            "measured_at"
-          ],
+          "columns": ["user_id", "measured_at"],
           "isUnique": false
         }
       },
@@ -1148,12 +1068,8 @@
           "name": "measurement_user_id_user_profile_id_fk",
           "tableFrom": "measurement",
           "tableTo": "user_profile",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1247,10 +1163,7 @@
       "indexes": {
         "exercise_event_user_occurred_idx": {
           "name": "exercise_event_user_occurred_idx",
-          "columns": [
-            "user_id",
-            "occurred_at"
-          ],
+          "columns": ["user_id", "occurred_at"],
           "isUnique": false
         }
       },
@@ -1259,12 +1172,8 @@
           "name": "exercise_event_user_id_user_profile_id_fk",
           "tableFrom": "exercise_event",
           "tableTo": "user_profile",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }

@@ -84,12 +84,23 @@ export type RecipeCard = z.infer<typeof recipeCardSchema>;
 export const menuCardSchema = baseCardSchema.extend({
   type: z.literal('menu'),
   title: z.string().min(1).max(200),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  startDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable()
+    .optional(),
+  endDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable()
+    .optional(),
   meals: z
     .array(
       z.object({
-        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        date: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
         slot: z.string().optional(),
         title: z.string().min(1).max(200),
         recipeId: idSchema.nullable().optional(),

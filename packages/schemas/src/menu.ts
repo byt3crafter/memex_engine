@@ -1,10 +1,5 @@
 import { z } from 'zod';
-import {
-  idSchema,
-  isoDateSchema,
-  jsonValueSchema,
-  timestampsSchema,
-} from './common.js';
+import { idSchema, isoDateSchema, jsonValueSchema, timestampsSchema } from './common.js';
 
 export const menuGeneratedFromSchema = z.enum(['recipes', 'pantry', 'assistant', 'manual']);
 export type MenuGeneratedFrom = z.infer<typeof menuGeneratedFromSchema>;

@@ -20,11 +20,7 @@ describe('db round-trip', () => {
     db = created.db;
     cleanup = () => created.client.close();
 
-    const migrationsFolder = join(
-      fileURLToPath(new URL('.', import.meta.url)),
-      '..',
-      'drizzle',
-    );
+    const migrationsFolder = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'drizzle');
     await migrate(db, { migrationsFolder });
   });
 
