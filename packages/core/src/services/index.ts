@@ -5,7 +5,10 @@ import { createMenuService, type MenuService } from './menu';
 import { createPantryService, type PantryService } from './pantry';
 import { createPatternService, type PatternService } from './pattern';
 import { createProfileService, type ProfileService } from './profile';
-import { createRecommendationService, type RecommendationService } from './recommendation';
+import {
+  createRecommendationService,
+  type RecommendationService,
+} from './recommendation/index';
 import { createRecipeService, type RecipeService } from './recipe';
 
 export * from './food-event';
@@ -14,7 +17,7 @@ export * from './pantry';
 export * from './pattern';
 export * from './profile';
 export * from './recipe';
-export * from './recommendation';
+export * from './recommendation/index';
 
 export interface Services {
   profile: ProfileService;
@@ -56,12 +59,20 @@ export function createServices(db: Db, options: CreateServicesOptions = {}): Ser
     foodEvent,
     ...(clock !== undefined ? { clock } : {}),
   });
+  const recommendation = createRecommendationService({
+    db,
+    profile,
+    pantry,
+    recipe,
+    foodEvent,
+    ...(clock !== undefined ? { clock } : {}),
+  });
   return {
     profile,
     pantry,
     foodEvent,
     recipe,
-    recommendation: createRecommendationService(db),
+    recommendation,
     menu: createMenuService(db),
     pattern: createPatternService(db),
   };
