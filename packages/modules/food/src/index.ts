@@ -9,6 +9,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineModule, type Module } from '@memex/kernel';
 import { foodCardContributions } from './cards/index';
+import { buildFoodMcpTools } from './mcp/tools';
 import { foodRoutes } from './routes/index';
 import { buildFoodServices, type FoodServices } from './services/index';
 
@@ -39,6 +40,7 @@ export const foodModule: Module<FoodServices> = defineModule<FoodServices>({
   cards: foodCardContributions,
   buildServices: (ctx) => buildFoodServices({ db: ctx.db }),
   buildRoutes: (services) => foodRoutes(services),
+  buildMcpTools: (services) => buildFoodMcpTools(services),
   buildExportData: async (services, userId) => ({
     pantry: await services.pantry.list(userId),
     foodEvents: await services.foodEvents.list(userId, { limit: 10_000 }),
