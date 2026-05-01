@@ -7,6 +7,7 @@ import { errorHandler } from './middleware/error';
 import { loggerMiddleware } from './middleware/logger';
 import { foodEventsRouter } from './routes/food-events';
 import { healthRouter } from './routes/health';
+import { menusRouter } from './routes/menus';
 import { pantryRouter } from './routes/pantry';
 import { profileRouter } from './routes/profile';
 import { recipesRouter } from './routes/recipes';
@@ -36,6 +37,7 @@ export function createApp(deps: AppDeps): Hono {
   v1.route('/food-events', foodEventsRouter(deps.services));
   v1.route('/recipes', recipesRouter(deps.services));
   v1.route('/recommendations', recommendationsRouter(deps.services));
+  v1.route('/menus', menusRouter(deps.services));
   app.route('/api/v1', v1);
 
   return app;

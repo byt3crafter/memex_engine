@@ -67,13 +67,20 @@ export function createServices(db: Db, options: CreateServicesOptions = {}): Ser
     foodEvent,
     ...(clock !== undefined ? { clock } : {}),
   });
+  const menu = createMenuService({
+    db,
+    profile,
+    pantry,
+    recipe,
+    ...(clock !== undefined ? { clock } : {}),
+  });
   return {
     profile,
     pantry,
     foodEvent,
     recipe,
     recommendation,
-    menu: createMenuService(db),
+    menu,
     pattern: createPatternService(db),
   };
 }
