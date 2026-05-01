@@ -33,15 +33,21 @@ export interface CreateServicesOptions {
 
 export function createServices(db: Db, options: CreateServicesOptions = {}): Services {
   const clock = options.clock;
+  const profile = createProfileService({
+    db,
+    ...(clock !== undefined ? { clock } : {}),
+    ...(options.defaultTimezone !== undefined
+      ? { defaultTimezone: options.defaultTimezone }
+      : {}),
+  });
+  const pantry = createPantryService({
+    db,
+    profile,
+    ...(clock !== undefined ? { clock } : {}),
+  });
   return {
-    profile: createProfileService({
-      db,
-      ...(clock !== undefined ? { clock } : {}),
-      ...(options.defaultTimezone !== undefined
-        ? { defaultTimezone: options.defaultTimezone }
-        : {}),
-    }),
-    pantry: createPantryService(db),
+    profile,
+    pantry,
     foodEvent: createFoodEventService(db),
     recommendation: createRecommendationService(db),
     recipe: createRecipeService(db),
