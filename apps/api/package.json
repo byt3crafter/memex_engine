@@ -15,7 +15,7 @@
     "test:e2e": "echo 'demo:dry-run lands in Phase 2' && exit 0",
     "demo:dry-run": "echo 'demo:dry-run lands in Phase 2' && exit 0",
     "migrate": "pnpm --filter @memex/db migrate",
-    "seed": "echo 'seed lands in Phase 5' && exit 0",
+    "seed": "tsx scripts/seed.ts",
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {

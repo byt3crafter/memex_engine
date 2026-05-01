@@ -1,0 +1,29 @@
+services:
+  memex-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: memex:latest
+    container_name: memex-api
+    restart: unless-stopped
+    ports:
+      - '${MEMEX_PORT:-8787}:8787'
+    volumes:
+      # SQLite file lives outside the container so data survives
+      # container rebuilds. Mount your host's ./data directory.
+      - ./data:/data
+    environment:
+      MEMEX_PORT: 8787
+      MEMEX_DATABASE_URL: file:/data/memex.db
+      MEMEX_BASE_URL: ${MEMEX_BASE_URL:-http://localhost:8787}
+      MEMEX_DEFAULT_TIMEZONE: ${MEMEX_DEFAULT_TIMEZONE:-UTC}
+      MEMEX_LOG_LEVEL: ${MEMEX_LOG_LEVEL:-info}
+      # REQUIRED — set in your .env file (NOT in this YAML).
+      # Generate with: openssl rand -hex 32
+      MEMEX_BOOTSTRAP_TOKEN: ${MEMEX_BOOTSTRAP_TOKEN:?set MEMEX_BOOTSTRAP_TOKEN in .env}
+    healthcheck:
+      test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:8787/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
