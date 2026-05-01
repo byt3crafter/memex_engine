@@ -264,26 +264,22 @@ export function buildFoodMcpTools(services: FoodServices): McpToolContribution[]
     {
       name: 'get_recent_patterns',
       description:
-        'Stub for Phase 4 — will return outcome-derived insights ("your last 5 high-protein lunches had energy_after ≥ 4"). Currently returns recent activity counts only.',
-      inputSchema: z.object({ days: z.number().int().min(1).max(90).default(7) }),
+        "Surface outcome-derived insights from the user's recent meals: protein↔energy correlation, unpromoted recipe candidates, variety drop, top satisfying meals, craving outcomes, activity drop-off. Each insight has evidenceCount + confidence + actionable detail.",
+      inputSchema: z.object({ days: z.number().int().min(1).max(90).default(30) }),
       handler: async (raw, ctx) => {
-        const input = z.object({ days: z.number().int().min(1).max(90).default(7) }).parse(raw);
-        const fromIso = new Date(Date.now() - input.days * 24 * 60 * 60 * 1000).toISOString();
-        const events = await services.foodEvents.list(ctx.userId, { from: fromIso, limit: 500 });
-        const meals = events.filter((e) => e.eventType === 'actual_meal');
-        const withOutcome = meals.filter((e) => e.outcome != null);
-        const avgSat =
-          withOutcome.length === 0
-            ? null
-            : withOutcome.reduce((acc, e) => acc + (e.outcome?.satisfactionScore ?? 0), 0) /
-              withOutcome.length;
-        return json({
-          days: input.days,
-          mealsLogged: meals.length,
-          mealsWithOutcomes: withOutcome.length,
-          avgSatisfaction: avgSat,
-          phase4Note: 'Pattern engine ships in Phase 4 with sqlite-vec semantic recall.',
-        });
+        const input = z.object({ days: z.number().int().min(1).max(90).default(30) }).parse(raw);
+        const insights = await services.patterns.recentInsights(ctx.userId, input.days);
+        return json({ days: input.days, insightCount: insights.length, insights });
+      },
+    },
+    {
+      name: 'get_weekly_review',
+      description:
+        "One-week reflection: meals logged, outcome insights surfaced, recipe candidates not yet saved. Ideal for a Sunday-night check-in or to seed the next week's planning.",
+      inputSchema: z.object({}),
+      handler: async (_raw, ctx) => {
+        const review = await services.patterns.weeklyReview(ctx.userId);
+        return json({ review });
       },
     },
   ];

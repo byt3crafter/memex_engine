@@ -128,15 +128,25 @@ describe('memex MCP server', () => {
     expect(menu.menu.items.length).toBeGreaterThan(0);
     expect(menu.card.type).toBe('food.menu');
 
-    // 8. patterns stub
+    // 8. real pattern engine — after promoting our recipe candidate
+    //    the unpromoted_recipe_candidates insight should NOT fire.
+    //    Other heuristics have minimum-evidence floors so a single
+    //    meal won't trip them either.
     const patterns = await callTool<{
-      mealsLogged: number;
-      mealsWithOutcomes: number;
-      avgSatisfaction: number | null;
+      days: number;
+      insightCount: number;
+      insights: { kind: string; headline: string }[];
     }>(h.client, 'get_recent_patterns', { days: 30 });
-    expect(patterns.mealsLogged).toBe(1);
-    expect(patterns.mealsWithOutcomes).toBe(1);
-    expect(patterns.avgSatisfaction).toBe(5);
+    expect(patterns.days).toBe(30);
+    const kinds = patterns.insights.map((i) => i.kind);
+    expect(kinds).not.toContain('unpromoted_recipe_candidates');
+
+    // 9. weekly review composes a summary + week boundaries
+    const review = await callTool<{
+      review: { weekStart: string; weekEnd: string; summary: string; highlights: string[] };
+    }>(h.client, 'get_weekly_review', {});
+    expect(review.review.weekStart).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(review.review.summary).toContain('meal');
   });
 
   it('rejects an invalid pairing token at server creation', async () => {

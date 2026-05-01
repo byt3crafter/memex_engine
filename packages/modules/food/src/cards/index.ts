@@ -60,7 +60,32 @@ const menuCardSchema = baseCardSchema.extend({
   prepNotes: z.string().nullable().optional(),
 });
 
+const insightCardSchema = baseCardSchema.extend({
+  cardSchemaVersion: z.literal(CARD_SCHEMA_VERSION),
+  type: z.literal('food.insight'),
+  module: z.literal('food'),
+  headline: z.string().min(1),
+  detail: z.string().min(1),
+  evidenceCount: z.number().int().nonnegative().default(0),
+  confidence: z.number().min(0).max(1).optional(),
+  tags: z.array(z.string()).default([]),
+});
+
+const weeklyReviewCardSchema = baseCardSchema.extend({
+  cardSchemaVersion: z.literal(CARD_SCHEMA_VERSION),
+  type: z.literal('food.weekly_review'),
+  module: z.literal('food'),
+  weekStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  weekEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  summary: z.string().min(1),
+  highlights: z.array(z.string()).default([]),
+  insights: z.array(insightCardSchema).default([]),
+  recipeCandidates: z.array(z.string()).default([]),
+});
+
 export const foodCardContributions: CardSchemaContribution[] = [
   { type: 'food.meal_recommendation', module: 'food', schema: mealRecommendationCardSchema },
   { type: 'food.menu', module: 'food', schema: menuCardSchema },
+  { type: 'food.insight', module: 'food', schema: insightCardSchema },
+  { type: 'food.weekly_review', module: 'food', schema: weeklyReviewCardSchema },
 ];

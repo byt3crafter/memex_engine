@@ -3,6 +3,7 @@ import type { Clock } from '@memex/kernel';
 import { createFoodEventService, type FoodEventService } from './food-event';
 import { createMenuService, type MenuService } from './menu';
 import { createPantryService, type PantryService } from './pantry';
+import { createPatternService, type PatternService } from './patterns';
 import { createRecipeService, type RecipeService } from './recipe';
 import { createRecommendationService, type RecommendationService } from './recommendation/index';
 
@@ -10,6 +11,7 @@ export * from './errors';
 export * from './food-event';
 export * from './menu';
 export * from './pantry';
+export * from './patterns';
 export * from './recipe';
 export * from './recommendation/index';
 
@@ -19,6 +21,7 @@ export interface FoodServices {
   recipes: RecipeService;
   menus: MenuService;
   recommendations: RecommendationService;
+  patterns: PatternService;
 }
 
 export interface BuildFoodServicesDeps {
@@ -40,5 +43,6 @@ export function buildFoodServices(deps: BuildFoodServicesDeps): FoodServices {
     foodEvents,
     ...clockOpt,
   });
-  return { pantry, foodEvents, recipes, menus, recommendations };
+  const patterns = createPatternService({ db, foodEvents, recipes, ...clockOpt });
+  return { pantry, foodEvents, recipes, menus, recommendations, patterns };
 }
