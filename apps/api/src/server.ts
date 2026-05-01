@@ -5,6 +5,7 @@ import type { Logger } from 'pino';
 import { authMiddleware } from './middleware/auth';
 import { errorHandler } from './middleware/error';
 import { loggerMiddleware } from './middleware/logger';
+import { exportRouter } from './routes/export';
 import { foodEventsRouter } from './routes/food-events';
 import { healthRouter } from './routes/health';
 import { menusRouter } from './routes/menus';
@@ -38,6 +39,7 @@ export function createApp(deps: AppDeps): Hono {
   v1.route('/recipes', recipesRouter(deps.services));
   v1.route('/recommendations', recommendationsRouter(deps.services));
   v1.route('/menus', menusRouter(deps.services));
+  v1.route('/export', exportRouter(deps.services));
   app.route('/api/v1', v1);
 
   return app;

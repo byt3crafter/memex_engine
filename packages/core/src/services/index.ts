@@ -1,5 +1,6 @@
 import type { Db } from '@pantrymind/db';
 import type { Clock } from '../util/time';
+import { createExportService, type ExportService } from './export';
 import { createFoodEventService, type FoodEventService } from './food-event';
 import { createMenuService, type MenuService } from './menu';
 import { createPantryService, type PantryService } from './pantry';
@@ -11,6 +12,7 @@ import {
 } from './recommendation/index';
 import { createRecipeService, type RecipeService } from './recipe';
 
+export * from './export';
 export * from './food-event';
 export * from './menu';
 export * from './pantry';
@@ -27,6 +29,7 @@ export interface Services {
   recipe: RecipeService;
   menu: MenuService;
   pattern: PatternService;
+  export: ExportService;
 }
 
 export interface CreateServicesOptions {
@@ -74,6 +77,15 @@ export function createServices(db: Db, options: CreateServicesOptions = {}): Ser
     recipe,
     ...(clock !== undefined ? { clock } : {}),
   });
+  const exportSvc = createExportService({
+    db,
+    profile,
+    pantry,
+    foodEvent,
+    recipe,
+    menu,
+    ...(clock !== undefined ? { clock } : {}),
+  });
   return {
     profile,
     pantry,
@@ -82,5 +94,6 @@ export function createServices(db: Db, options: CreateServicesOptions = {}): Ser
     recommendation,
     menu,
     pattern: createPatternService(db),
+    export: exportSvc,
   };
 }

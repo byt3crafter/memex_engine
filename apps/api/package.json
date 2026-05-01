@@ -12,8 +12,8 @@
     "test": "vitest run",
     "test:unit": "vitest run --dir src",
     "test:api": "vitest run",
-    "test:e2e": "echo 'demo:dry-run lands in Phase 2' && exit 0",
-    "demo:dry-run": "echo 'demo:dry-run lands in Phase 2' && exit 0",
+    "test:e2e": "tsx scripts/demo.ts",
+    "demo:dry-run": "tsx scripts/demo.ts",
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
