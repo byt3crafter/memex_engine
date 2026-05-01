@@ -5,6 +5,7 @@ import type { Logger } from 'pino';
 import { authMiddleware } from './middleware/auth';
 import { errorHandler } from './middleware/error';
 import { loggerMiddleware } from './middleware/logger';
+import { foodEventsRouter } from './routes/food-events';
 import { healthRouter } from './routes/health';
 import { pantryRouter } from './routes/pantry';
 import { profileRouter } from './routes/profile';
@@ -30,6 +31,7 @@ export function createApp(deps: AppDeps): Hono {
   v1.route('/version', versionRouter);
   v1.route('/profile', profileRouter(deps.services));
   v1.route('/pantry', pantryRouter(deps.services));
+  v1.route('/food-events', foodEventsRouter(deps.services));
   app.route('/api/v1', v1);
 
   return app;

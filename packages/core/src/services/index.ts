@@ -45,10 +45,15 @@ export function createServices(db: Db, options: CreateServicesOptions = {}): Ser
     profile,
     ...(clock !== undefined ? { clock } : {}),
   });
+  const foodEvent = createFoodEventService({
+    db,
+    profile,
+    ...(clock !== undefined ? { clock } : {}),
+  });
   return {
     profile,
     pantry,
-    foodEvent: createFoodEventService(db),
+    foodEvent,
     recommendation: createRecommendationService(db),
     recipe: createRecipeService(db),
     menu: createMenuService(db),
