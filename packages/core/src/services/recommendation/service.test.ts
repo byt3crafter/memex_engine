@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { setupTestHarness, type TestHarness } from '../../test-support/index';
-import {
-  RECOMMENDATION_ENGINE_VERSION_V1,
-  RecommendationNotFoundError,
-} from './index';
+import { RECOMMENDATION_ENGINE_VERSION_V1, RecommendationNotFoundError } from './index';
 
 describe('recommendationService', () => {
   let h: TestHarness;

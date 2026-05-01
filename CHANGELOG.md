@@ -51,9 +51,70 @@ once it reaches `v0.1.0`.
 - `pnpm db:migrate` applies the init migration to a libSQL file and
   creates all 10 spec tables.
 
-### Phase 2 — Food loop (planned)
+### Phase 2 — Food loop (complete)
 
-- Profile, pantry, food-event, recommendation, outcome, recipe-promotion,
-  menu-suggestion, export endpoints + tests.
-- Deterministic recommendation engine v1 (no LLM).
-- `pnpm demo:dry-run` script walking the full no-GUI loop.
+The product wedge — every domain action implemented end-to-end with
+matching REST routes and tests, no LLM required.
+
+- **Domain utilities & test harness** — `packages/core/src/util` (clock,
+  ISO date helpers, `normalizeName`) and
+  `@pantrymind/core/test-support` exposing `setupTestHarness()`. Every
+  service test runs against a fresh tempfile libSQL with real
+  migrations applied.
+- **Profile** — `getCurrentProfile()` auto-creates the singleton row;
+  `updateCurrentProfile(patch)` partial-merges. `GET/PUT /api/v1/profile`.
+- **Pantry** — list (category / availability / search), create,
+  update, soft delete, bulk-update with optional replace mode.
+  `PantryItemNotFoundError → 404`. Routes under `/api/v1/pantry`.
+- **Food events + items + outcomes** — append-only event log with
+  attached items; outcomes upsert by `food_event_id` so re-asking
+  doesn't duplicate. `FoodEventNotFoundError → 404`. Routes under
+  `/api/v1/food-events`.
+- **Recipe** — full CRUD (soft delete via `is_active=false`),
+  `promoteFromFoodEvent` lifts a logged meal into a recipe with
+  override hooks (title / tags / description / proteinSource) and
+  carries `satisfactionScore → personalRating`. `RecipeNotFoundError →
+404`. Routes under `/api/v1/recipes`, including
+  `POST /from-food-event/:id`.
+- **Recommendation engine v1** — deterministic, pure scoring engine
+  (`services/recommendation/engine.ts`) over a context (pantry, active
+  recipes, last-30-day events with outcomes, optional craving /
+  preferred protein). Heuristic: ingredient overlap, protein-on-hand,
+  preferred-protein match, recent-repeat penalty (≤7 days),
+  outcome-history bonus, craving-text token match, plus 3 freestyle
+  bowl/plate/sandwich templates from pantry alone. Engine version
+  stamped on every persisted row (`reco@v1`). Service persists pantry
+  snapshot + reasoning + a `meal_recommendation` card with
+  log_eaten / save_recipe / add_to_shopping_list actions. Routes
+  under `/api/v1/recommendations` (`POST /meal`, `GET /:id`,
+  `POST /:id/select`).
+- **Menu suggestion v1** — `services/menu.ts` builds an N-day menu
+  (default 3) with two slots per day, ranks active recipes by
+  pantry-overlap ratio, computes `shoppingGaps` as the deduplicated
+  set of required ingredients not in pantry, stamps a `menu` card.
+  Empty-recipe state returns a friendly `prepNotes` hint. Routes
+  under `/api/v1/menus`.
+- **Export** — `services/export.exportAll()` returns a complete JSON
+  bundle (profile + pantry + foodEvents + recipes + recommendations +
+  menus + measurements + exerciseEvents) with `schemaVersion: 1`.
+  Surfaces as `GET /api/v1/export/json`.
+- **`pnpm demo:dry-run`** — `apps/api/scripts/demo.ts` walks the full
+  loop end-to-end (profile → pantry → recommend → log meal → outcome
+  → promote recipe → menu → export) and prints PASS/FAIL per step.
+  9/9 PASS. This is the no-GUI acceptance test.
+
+#### Verification
+
+- `pnpm verify` (typecheck + prettier + tests + build) green.
+- 75 tests passing total: 5 schemas, 3 db, 5 normalizeName + config,
+  4 profile + 7 pantry + 5 food-event + 6 recipe + 4 reco-engine + 3
+  reco-service + 3 menu (service-level), and 5 server-smoke + 4
+  profile + 6 pantry + 6 food-events + 4 recipes + 4 recommendations
+  - 3 menus + 1 export (route-level), plus 1 mcp shell.
+- `pnpm demo:dry-run` exits 0 with all 9 steps green.
+
+### Phase 3 — MCP server (planned)
+
+- Wire all 12 spec tools to the same core services.
+- Resources, prompts, onboarding-prompt-by-assistant.
+- MCP test harness exercising every tool's happy path.

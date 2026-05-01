@@ -6,10 +6,7 @@ import { createMenuService, type MenuService } from './menu';
 import { createPantryService, type PantryService } from './pantry';
 import { createPatternService, type PatternService } from './pattern';
 import { createProfileService, type ProfileService } from './profile';
-import {
-  createRecommendationService,
-  type RecommendationService,
-} from './recommendation/index';
+import { createRecommendationService, type RecommendationService } from './recommendation/index';
 import { createRecipeService, type RecipeService } from './recipe';
 
 export * from './export';
@@ -42,9 +39,7 @@ export function createServices(db: Db, options: CreateServicesOptions = {}): Ser
   const profile = createProfileService({
     db,
     ...(clock !== undefined ? { clock } : {}),
-    ...(options.defaultTimezone !== undefined
-      ? { defaultTimezone: options.defaultTimezone }
-      : {}),
+    ...(options.defaultTimezone !== undefined ? { defaultTimezone: options.defaultTimezone } : {}),
   });
   const pantry = createPantryService({
     db,

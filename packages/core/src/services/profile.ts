@@ -19,11 +19,8 @@ export interface ProfileServiceDeps {
   defaultDisplayName?: string;
 }
 
-export function createProfileService(
-  depsOrDb: ProfileServiceDeps | Db,
-): ProfileService {
-  const deps: ProfileServiceDeps =
-    'db' in depsOrDb ? depsOrDb : { db: depsOrDb };
+export function createProfileService(depsOrDb: ProfileServiceDeps | Db): ProfileService {
+  const deps: ProfileServiceDeps = 'db' in depsOrDb ? depsOrDb : { db: depsOrDb };
   const clock = deps.clock ?? systemClock;
   const defaultTimezone = deps.defaultTimezone ?? DEFAULT_TIMEZONE;
   const defaultDisplayName = deps.defaultDisplayName ?? DEFAULT_DISPLAY_NAME;
@@ -77,10 +74,7 @@ export function createProfileService(
       if (input.allergies !== undefined) patch.allergies = input.allergies;
       if (input.healthNotes !== undefined) patch.healthNotes = input.healthNotes;
 
-      await db
-        .update(schema.userProfile)
-        .set(patch)
-        .where(eq(schema.userProfile.id, current.id));
+      await db.update(schema.userProfile).set(patch).where(eq(schema.userProfile.id, current.id));
 
       const updated = await loadFirst();
       if (!updated) {

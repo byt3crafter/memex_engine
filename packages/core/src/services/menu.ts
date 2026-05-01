@@ -33,12 +33,12 @@ export function createMenuService(deps: MenuServiceDeps | Db): MenuService {
   const concrete: MenuServiceDeps =
     'db' in deps && 'profile' in deps
       ? deps
-      : ({
+      : {
           db: deps as Db,
           profile: undefined as unknown as ProfileService,
           pantry: undefined as unknown as PantryService,
           recipe: undefined as unknown as RecipeService,
-        });
+        };
   const { db } = concrete;
   const clock = concrete.clock ?? systemClock;
 
@@ -146,7 +146,12 @@ export function createMenuService(deps: MenuServiceDeps | Db): MenuService {
         shoppingGaps: shoppingGaps.map((g) => g.name),
         prepNotes: items.length === 0 ? 'No saved recipes yet — promote some meals first.' : null,
         actions: [
-          { id: 'add_to_shopping_list', label: 'Add gaps to shopping list', kind: 'add_to_shopping_list', payload: { items: shoppingGaps.map((g) => g.name) } },
+          {
+            id: 'add_to_shopping_list',
+            label: 'Add gaps to shopping list',
+            kind: 'add_to_shopping_list',
+            payload: { items: shoppingGaps.map((g) => g.name) },
+          },
         ],
       };
 

@@ -44,8 +44,18 @@ async function main(): Promise<void> {
     {
       name: 'pantry stocked (3 items)',
       async run() {
-        const a = await services.pantry.create({ name: 'Chicken breast', category: 'protein', quantity: 500, unit: 'g' });
-        const b = await services.pantry.create({ name: 'Rice', category: 'carb', quantity: 1000, unit: 'g' });
+        const a = await services.pantry.create({
+          name: 'Chicken breast',
+          category: 'protein',
+          quantity: 500,
+          unit: 'g',
+        });
+        const b = await services.pantry.create({
+          name: 'Rice',
+          category: 'carb',
+          quantity: 1000,
+          unit: 'g',
+        });
         const c = await services.pantry.create({ name: 'Broccoli', category: 'vegetable' });
         const list = await services.pantry.list();
         if (list.length !== 3) throw new Error(`expected 3, got ${list.length}`);

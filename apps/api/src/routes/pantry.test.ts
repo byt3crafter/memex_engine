@@ -14,7 +14,12 @@ describe('/api/v1/pantry', () => {
   it('POST creates an item', async () => {
     const res = await h.request('/api/v1/pantry/items', {
       method: 'POST',
-      body: JSON.stringify({ name: 'Chicken breast', category: 'protein', quantity: 500, unit: 'g' }),
+      body: JSON.stringify({
+        name: 'Chicken breast',
+        category: 'protein',
+        quantity: 500,
+        unit: 'g',
+      }),
     });
     expect(res.status).toBe(201);
     const body = (await res.json()) as { id: string; normalizedName: string; isAvailable: boolean };

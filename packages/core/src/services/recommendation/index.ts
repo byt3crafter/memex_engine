@@ -40,13 +40,13 @@ export function createRecommendationService(
   const concrete: RecommendationServiceDeps =
     'db' in deps && 'profile' in deps
       ? deps
-      : ({
+      : {
           db: deps as Db,
           profile: undefined as unknown as ProfileService,
           pantry: undefined as unknown as PantryService,
           recipe: undefined as unknown as RecipeService,
           foodEvent: undefined as unknown as FoodEventService,
-        });
+        };
   const { db } = concrete;
   const clock = concrete.clock ?? systemClock;
 
@@ -126,10 +126,7 @@ export function createRecommendationService(
     };
   }
 
-  function buildCard(
-    recommendationId: string,
-    options: ScoredOption[],
-  ): MealRecommendationCard {
+  function buildCard(recommendationId: string, options: ScoredOption[]): MealRecommendationCard {
     const top = options[0]!;
     const card: MealRecommendationCard = {
       cardSchemaVersion: CARD_SCHEMA_VERSION,
@@ -196,9 +193,7 @@ export function createRecommendationService(
     const rows = await db
       .select()
       .from(schema.recommendation)
-      .where(
-        and(eq(schema.recommendation.id, id), eq(schema.recommendation.userId, uid)),
-      )
+      .where(and(eq(schema.recommendation.id, id), eq(schema.recommendation.userId, uid)))
       .limit(1)
       .all();
     return rows[0];
@@ -298,7 +293,10 @@ export class RecommendationNotFoundError extends Error {
 
 export class InvalidRecommendationOptionError extends Error {
   readonly code = 'invalid_option_index' as const;
-  constructor(public readonly id: string, public readonly index: number) {
+  constructor(
+    public readonly id: string,
+    public readonly index: number,
+  ) {
     super(`recommendation ${id} has no option at index ${index}`);
   }
 }

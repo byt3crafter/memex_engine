@@ -19,10 +19,7 @@ describe('/api/v1/menus', () => {
       method: 'POST',
       body: JSON.stringify({
         title: 'Omelet',
-        ingredients: [
-          { name: 'Eggs' },
-          { name: 'Cheese' },
-        ],
+        ingredients: [{ name: 'Eggs' }, { name: 'Cheese' }],
         steps: [],
         tags: [],
       }),

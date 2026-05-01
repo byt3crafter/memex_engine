@@ -45,13 +45,11 @@ export interface FoodEventServiceDeps {
   clock?: Clock;
 }
 
-export function createFoodEventService(
-  deps: FoodEventServiceDeps | Db,
-): FoodEventService {
+export function createFoodEventService(deps: FoodEventServiceDeps | Db): FoodEventService {
   const concrete: FoodEventServiceDeps =
     'db' in deps && 'profile' in deps
       ? deps
-      : ({ db: deps as Db, profile: undefined as unknown as ProfileService });
+      : { db: deps as Db, profile: undefined as unknown as ProfileService };
   const { db } = concrete;
   const clock = concrete.clock ?? systemClock;
 
@@ -272,10 +270,7 @@ export function createFoodEventService(
       const existing = await loadDetails(id, uid);
       const now = nowIso(clock);
       await insertItems(existing.id, items, now);
-      await db
-        .update(schema.foodEvent)
-        .set({ updatedAt: now })
-        .where(eq(schema.foodEvent.id, id));
+      await db.update(schema.foodEvent).set({ updatedAt: now }).where(eq(schema.foodEvent.id, id));
       return loadDetails(id, uid);
     },
 

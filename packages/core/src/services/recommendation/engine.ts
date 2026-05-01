@@ -73,9 +73,10 @@ function indexPantry(pantry: PantryItem[]): PantryIndex {
   return { byNorm, byCategory };
 }
 
-function recentRecipeUsage(
-  ctx: RecommendationContext,
-): { byRecipeId: Map<string, number>; daysAgoByRecipe: Map<string, number> } {
+function recentRecipeUsage(ctx: RecommendationContext): {
+  byRecipeId: Map<string, number>;
+  daysAgoByRecipe: Map<string, number>;
+} {
   const byRecipeId = new Map<string, number>();
   const daysAgoByRecipe = new Map<string, number>();
   for (const ev of ctx.recentEvents) {
@@ -95,7 +96,7 @@ function parseRecipeIdFromNotes(notes: string): string | null {
   // as JSON tag {"recipeId":"rcp_..."} when an actual_meal is logged from a
   // selected recommendation. Best-effort parse only.
   const m = notes.match(/"recipeId"\s*:\s*"([^"]+)"/);
-  return m ? m[1] ?? null : null;
+  return m ? (m[1] ?? null) : null;
 }
 
 function avgSatisfactionByRecipe(ctx: RecommendationContext): Map<string, number> {

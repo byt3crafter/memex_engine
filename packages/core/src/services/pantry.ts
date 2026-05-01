@@ -43,7 +43,7 @@ export function createPantryService(deps: PantryServiceDeps | Db): PantryService
   const concrete: PantryServiceDeps =
     'db' in deps && 'profile' in deps
       ? deps
-      : ({ db: deps as Db, profile: undefined as unknown as ProfileService });
+      : { db: deps as Db, profile: undefined as unknown as ProfileService };
   const { db } = concrete;
   const clock = concrete.clock ?? systemClock;
 
@@ -242,11 +242,7 @@ export function createPantryService(deps: PantryServiceDeps | Db): PantryService
       }
 
       const totalAfter = (
-        await db
-          .select()
-          .from(schema.pantryItem)
-          .where(eq(schema.pantryItem.userId, uid))
-          .all()
+        await db.select().from(schema.pantryItem).where(eq(schema.pantryItem.userId, uid)).all()
       ).length;
 
       return { created, updated, deleted, totalAfter };

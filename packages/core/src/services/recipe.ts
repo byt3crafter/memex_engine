@@ -31,10 +31,7 @@ export interface RecipeService {
   getById(id: string): Promise<Recipe>;
   update(id: string, patch: UpdateRecipe): Promise<Recipe>;
   delete(id: string): Promise<void>;
-  promoteFromFoodEvent(
-    foodEventId: string,
-    overrides?: PromoteFoodEventOverrides,
-  ): Promise<Recipe>;
+  promoteFromFoodEvent(foodEventId: string, overrides?: PromoteFoodEventOverrides): Promise<Recipe>;
 }
 
 export interface RecipeServiceDeps {
@@ -48,11 +45,11 @@ export function createRecipeService(deps: RecipeServiceDeps | Db): RecipeService
   const concrete: RecipeServiceDeps =
     'db' in deps && 'profile' in deps && 'foodEvent' in deps
       ? deps
-      : ({
+      : {
           db: deps as Db,
           profile: undefined as unknown as ProfileService,
           foodEvent: undefined as unknown as FoodEventService,
-        });
+        };
   const { db } = concrete;
   const clock = concrete.clock ?? systemClock;
 
@@ -170,18 +167,14 @@ export function createRecipeService(deps: RecipeServiceDeps | Db): RecipeService
       const values: Partial<typeof schema.recipe.$inferInsert> = { updatedAt: now };
       if (patch.title !== undefined) values.title = patch.title;
       if (patch.description !== undefined) values.description = patch.description;
-      if (patch.sourceFoodEventId !== undefined)
-        values.sourceFoodEventId = patch.sourceFoodEventId;
+      if (patch.sourceFoodEventId !== undefined) values.sourceFoodEventId = patch.sourceFoodEventId;
       if (patch.ingredients !== undefined) values.ingredients = patch.ingredients;
       if (patch.steps !== undefined) values.steps = patch.steps;
       if (patch.proteinSource !== undefined) values.proteinSource = patch.proteinSource;
       if (patch.tags !== undefined) values.tags = patch.tags;
-      if (patch.estimatedCalories !== undefined)
-        values.estimatedCalories = patch.estimatedCalories;
-      if (patch.estimatedProteinG !== undefined)
-        values.estimatedProteinG = patch.estimatedProteinG;
-      if (patch.estimatedCarbsG !== undefined)
-        values.estimatedCarbsG = patch.estimatedCarbsG;
+      if (patch.estimatedCalories !== undefined) values.estimatedCalories = patch.estimatedCalories;
+      if (patch.estimatedProteinG !== undefined) values.estimatedProteinG = patch.estimatedProteinG;
+      if (patch.estimatedCarbsG !== undefined) values.estimatedCarbsG = patch.estimatedCarbsG;
       if (patch.estimatedFatG !== undefined) values.estimatedFatG = patch.estimatedFatG;
       if (patch.personalRating !== undefined) values.personalRating = patch.personalRating;
       if (patch.isActive !== undefined) values.isActive = patch.isActive;

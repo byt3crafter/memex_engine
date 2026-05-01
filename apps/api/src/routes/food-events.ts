@@ -78,9 +78,7 @@ export function foodEventsRouter(services: Services): Hono {
 
   r.post('/:id/outcome', zValidator('json', createMealOutcomeSchema), async (c) => {
     const id = c.req.param('id');
-    const outcome = await notFoundHandler(
-      services.foodEvent.logOutcome(id, c.req.valid('json')),
-    );
+    const outcome = await notFoundHandler(services.foodEvent.logOutcome(id, c.req.valid('json')));
     return c.json(outcome);
   });
 
