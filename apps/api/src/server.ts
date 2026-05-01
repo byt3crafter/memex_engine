@@ -21,6 +21,7 @@ import { adminRouter } from './routes/admin';
 import { connectionsRouter, pairCompleteRouter } from './routes/connections';
 import { healthRouter } from './routes/health';
 import { meRouter } from './routes/me';
+import { rootRouter } from './routes/root';
 
 export interface AppDeps {
   kernel: Kernel;
@@ -34,6 +35,7 @@ export function createApp(deps: AppDeps): Hono {
   app.use('*', loggerMiddleware(logger));
   app.onError(errorHandler(logger));
 
+  app.route('/', rootRouter(kernel));
   app.route('/health', healthRouter);
 
   // Admin / bootstrap — gated by MEMEX_BOOTSTRAP_TOKEN.
