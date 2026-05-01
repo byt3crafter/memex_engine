@@ -32,6 +32,16 @@ export const foodModule: Module<FoodServices> = defineModule<FoodServices>({
     description:
       'Pantry, meals, recipes, menus, and the outcome-aware recommendation engine. The first Memex module.',
     domain: 'food',
+    category: 'Food & nutrition',
+    icon: '🌾',
+    tagline: 'Reality-first food memory. What you have, what you ate, what worked.',
+    features: [
+      'Pantry-aware meal recommendations',
+      'Recipe promotion from real meals you liked',
+      'Outcome → pattern engine: protein↔energy correlation, recipe candidates, variety drops',
+      'Pantry-overlap menu planner with shopping gaps',
+      'Replayable recommendation traces (engine-versioned)',
+    ],
     routePrefix: 'food',
     dependsOn: [],
     scopes: ['food:read', 'food:write'],

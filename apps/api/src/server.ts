@@ -65,5 +65,15 @@ export function createApp(deps: AppDeps): Hono {
 
   app.route('/api/v1', v1);
 
+  // Module-contributed PUBLIC webhook routers, mounted at /webhook/<id>/.
+  // No bearer auth here — modules are responsible for verifying the
+  // origin (e.g., Telegram's secret_token header).
+  for (const entry of kernel.modules.list()) {
+    const m = entry.module;
+    const r = m.buildWebhookRoutes?.(entry.services);
+    if (!r) continue;
+    app.route(`/webhook/${m.manifest.id}`, r);
+  }
+
   return app;
 }

@@ -65,6 +65,13 @@ export interface Module<S = unknown> {
   buildServices: (ctx: ModuleContext) => S;
   /** Build a Hono router; mounted at /api/v1/<manifest.routePrefix ?? id>/. */
   buildRoutes?: (services: S) => Hono;
+  /**
+   * Build a Hono router for public webhook endpoints (Telegram, Stripe, …).
+   * Mounted at /webhook/<manifest.id>/ — NOT under /api/v1 and NOT
+   * behind kernel bearer auth. The module is responsible for its own
+   * verification (signature header, secret token, etc).
+   */
+  buildWebhookRoutes?: (services: S) => Hono;
   /** MCP tools contributed to the kernel's MCP server. */
   buildMcpTools?: (services: S) => McpToolContribution[];
   /** Export hook for the kernel-level /api/v1/export/json bundle. */

@@ -21,6 +21,9 @@ services:
       # REQUIRED — set in your .env file (NOT in this YAML).
       # Generate with: openssl rand -hex 32
       MEMEX_BOOTSTRAP_TOKEN: ${MEMEX_BOOTSTRAP_TOKEN:?set MEMEX_BOOTSTRAP_TOKEN in .env}
+      # Iris (Telegram) — module is disabled if either is unset.
+      MEMEX_TELEGRAM_BOT_TOKEN: ${MEMEX_TELEGRAM_BOT_TOKEN:-}
+      MEMEX_TELEGRAM_WEBHOOK_SECRET: ${MEMEX_TELEGRAM_WEBHOOK_SECRET:-}
     healthcheck:
       test: ['CMD', 'wget', '--quiet', '--tries=1', '--spider', 'http://localhost:8787/health']
       interval: 30s

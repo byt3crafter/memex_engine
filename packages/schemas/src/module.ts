@@ -16,5 +16,15 @@ export const moduleManifestSchema = z.object({
     .optional(),
   dependsOn: z.array(z.string()).default([]),
   scopes: z.array(z.string()).default([]),
+  /** Single emoji or short symbol for App-Store-style listings. */
+  icon: z.string().max(8).optional(),
+  /** One-line pitch ≤ 120 chars. Distinct from `description` (longer). */
+  tagline: z.string().max(120).optional(),
+  /** Short bullet points highlighting capabilities. */
+  features: z.array(z.string().max(120)).max(8).optional(),
+  /** Display category (e.g. 'Food', 'Identity', 'Sleep'). Free-text. */
+  category: z.string().max(40).optional(),
+  /** Optional URL for the module's own docs/site. */
+  homepage: z.string().url().optional(),
 });
 export type ModuleManifest = z.infer<typeof moduleManifestSchema>;

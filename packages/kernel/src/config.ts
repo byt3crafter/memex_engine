@@ -18,6 +18,10 @@ const configSchema = z.object({
   logLevel: logLevelSchema.default('info'),
   nodeEnv: z.enum(['development', 'test', 'production']).default('development'),
   enabledModules: z.array(z.string()).default([]),
+  // Optional per-module config the kernel knows about. Modules read
+  // these from ctx.config and disable themselves cleanly when absent.
+  telegramBotToken: z.string().min(20).optional(),
+  telegramWebhookSecret: z.string().min(16).optional(),
 });
 
 export type AppConfig = z.infer<typeof configSchema>;
@@ -59,5 +63,7 @@ export function loadConfig(
     logLevel: env['MEMEX_LOG_LEVEL'],
     nodeEnv: env['NODE_ENV'],
     enabledModules: overrides.enabledModules ?? csvFromString(env['MEMEX_MODULES']) ?? [],
+    telegramBotToken: env['MEMEX_TELEGRAM_BOT_TOKEN'],
+    telegramWebhookSecret: env['MEMEX_TELEGRAM_WEBHOOK_SECRET'],
   });
 }

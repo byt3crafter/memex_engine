@@ -24,6 +24,7 @@
     "@memex/db": "workspace:*",
     "@memex/kernel": "workspace:*",
     "@memex/module-food": "workspace:*",
+    "@memex/module-telegram": "workspace:*",
     "@memex/schemas": "workspace:*",
     "hono": "^4.6.14",
     "pino": "^9.5.0",

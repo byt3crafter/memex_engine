@@ -1,0 +1,31 @@
+{
+  "name": "@memex/module-telegram",
+  "version": "0.1.0",
+  "description": "Iris — Telegram-based signup, identity, and notification gateway for Memex.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "generate": "drizzle-kit generate --config=drizzle.config.ts",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@memex/db": "workspace:*",
+    "@memex/kernel": "workspace:*",
+    "@memex/schemas": "workspace:*",
+    "drizzle-orm": "^0.36.4",
+    "hono": "^4.6.14",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.28.1",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.8"
+  }
+}
