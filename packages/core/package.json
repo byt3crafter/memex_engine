@@ -7,7 +7,9 @@
     ".": "./src/index.ts",
     "./config": "./src/config.ts",
     "./services": "./src/services/index.ts",
-    "./cards": "./src/cards/index.ts"
+    "./cards": "./src/cards/index.ts",
+    "./util": "./src/util/index.ts",
+    "./test-support": "./src/test-support/index.ts"
   },
   "scripts": {
     "build": "tsc -b",
