@@ -9,6 +9,7 @@ import { foodEventsRouter } from './routes/food-events';
 import { healthRouter } from './routes/health';
 import { pantryRouter } from './routes/pantry';
 import { profileRouter } from './routes/profile';
+import { recipesRouter } from './routes/recipes';
 import { versionRouter } from './routes/version';
 
 export interface AppDeps {
@@ -32,6 +33,7 @@ export function createApp(deps: AppDeps): Hono {
   v1.route('/profile', profileRouter(deps.services));
   v1.route('/pantry', pantryRouter(deps.services));
   v1.route('/food-events', foodEventsRouter(deps.services));
+  v1.route('/recipes', recipesRouter(deps.services));
   app.route('/api/v1', v1);
 
   return app;
