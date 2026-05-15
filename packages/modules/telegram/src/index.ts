@@ -71,6 +71,7 @@ export function defineTelegramModule(options: TelegramModuleOptions): Module<Tel
       }),
     // Telegram's webhook lives outside /api/v1/* — see apps/api/src/server.ts
     // which mounts buildWebhookRoutes() under /webhook/<id>/.
-    buildWebhookRoutes: (services) => webhookRouter({ services, secretToken: options.webhookSecret }),
+    buildWebhookRoutes: (services) =>
+      webhookRouter({ services, secretToken: options.webhookSecret }),
   });
 }

@@ -47,7 +47,7 @@ describe('module-food (Demeter) under /api/v1/food/*', () => {
     expect(p.h.kernel.modules.ids()).toContain('food');
     const m = p.h.kernel.modules.require('food');
     expect(m.module.manifest.codename).toBe('Demeter');
-    expect(m.module.manifest.version).toBe('0.1.0');
+    expect(m.module.manifest.version).toBe('0.2.0');
   });
 
   it('contributes its meal_recommendation + menu cards to the registry', () => {

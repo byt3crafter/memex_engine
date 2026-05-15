@@ -18,6 +18,7 @@
  */
 import type { ModuleManifest } from '@memex/schemas';
 import type { Db } from '@memex/db';
+import type { Client } from '@libsql/client';
 import type { Hono } from 'hono';
 import type { Logger } from 'pino';
 import type { ZodTypeAny } from 'zod';
@@ -38,6 +39,10 @@ export interface KernelHandle {
 export interface ModuleContext {
   config: AppConfig;
   db: Db;
+  /** Raw libsql client — optional; present when the kernel was created with a client.
+   *  Modules may use this for operations that require the underlying SQLite handle,
+   *  such as loading native extensions (e.g. sqlite-vec). */
+  client?: Client;
   logger: Logger;
   kernel: KernelHandle;
 }

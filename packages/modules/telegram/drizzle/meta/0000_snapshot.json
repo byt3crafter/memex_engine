@@ -83,9 +83,7 @@
       "indexes": {
         "telegram_user_user_idx": {
           "name": "telegram_user_user_idx",
-          "columns": [
-            "user_id"
-          ],
+          "columns": ["user_id"],
           "isUnique": false
         }
       },
@@ -94,12 +92,8 @@
           "name": "telegram_user_user_id_user_id_fk",
           "tableFrom": "telegram_user",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }

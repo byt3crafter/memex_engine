@@ -20,7 +20,7 @@ if (config.databaseUrl.startsWith('file:')) {
   await mkdir(dirname(config.databaseUrl.slice('file:'.length)), { recursive: true });
 }
 
-const { db } = createDb({
+const { db, client } = createDb({
   url: config.databaseUrl,
   ...(config.databaseAuthToken !== undefined ? { authToken: config.databaseAuthToken } : {}),
 });
@@ -47,6 +47,7 @@ if (config.telegramBotToken && config.telegramWebhookSecret) {
 const kernel = await createKernel({
   config,
   db,
+  client,
   logger,
   modules,
 });

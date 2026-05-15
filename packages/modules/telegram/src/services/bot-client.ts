@@ -14,7 +14,11 @@ export interface TelegramBotClient {
   sendMessage(chatId: number, text: string, opts?: SendMessageOptions): Promise<void>;
   setWebhook(url: string, secretToken: string): Promise<void>;
   deleteWebhook(): Promise<void>;
-  getWebhookInfo(): Promise<{ url: string; has_custom_certificate: boolean; pending_update_count: number }>;
+  getWebhookInfo(): Promise<{
+    url: string;
+    has_custom_certificate: boolean;
+    pending_update_count: number;
+  }>;
 }
 
 export interface BotClientOptions {
@@ -73,9 +77,11 @@ export function createBotClient(opts: BotClientOptions): TelegramBotClient {
       await call<unknown>('deleteWebhook', { drop_pending_updates: true });
     },
     async getWebhookInfo() {
-      return await call<{ url: string; has_custom_certificate: boolean; pending_update_count: number }>(
-        'getWebhookInfo',
-      );
+      return await call<{
+        url: string;
+        has_custom_certificate: boolean;
+        pending_update_count: number;
+      }>('getWebhookInfo');
     },
   };
 }
