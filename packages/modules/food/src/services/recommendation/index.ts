@@ -14,9 +14,14 @@ import { InvalidRecommendationOptionError, RecommendationNotFoundError } from '.
 import type { FoodEventService } from '../food-event';
 import type { PantryService } from '../pantry';
 import type { RecipeService } from '../recipe';
+import type { EmbeddingService } from '../embeddings';
+import { embedText } from '../embeddings';
 import { generateOptions, type RecentFoodEventForRec, type ScoredOption } from './engine';
+import { generateOptionsV2, type SemanticContext } from './engine_v2';
+import { normalizeName } from '@memex/kernel';
 
 export const RECOMMENDATION_ENGINE_VERSION_V1 = 'reco@v1' as const;
+export const RECOMMENDATION_ENGINE_VERSION_V2 = 'reco@v2' as const;
 
 export interface RecommendationService {
   recommendMeal(userId: string, input: CreateRecommendationInput): Promise<Recommendation>;
@@ -30,13 +35,14 @@ export interface RecommendationServiceDeps {
   pantry: PantryService;
   recipes: RecipeService;
   foodEvents: FoodEventService;
+  embeddings?: EmbeddingService;
   clock?: Clock;
 }
 
 export function createRecommendationService(
   deps: RecommendationServiceDeps,
 ): RecommendationService {
-  const { db, pantry, recipes, foodEvents } = deps;
+  const { db, pantry, recipes, foodEvents, embeddings } = deps;
   const clock = deps.clock ?? systemClock;
 
   function rowToRecommendation(row: typeof foodSchema.recommendation.$inferSelect): Recommendation {
@@ -132,8 +138,41 @@ export function createRecommendationService(
     };
   }
 
+  function buildSemanticContext(): SemanticContext | null {
+    if (!embeddings || !embeddings.isAvailable()) return null;
+
+    return {
+      async findSimilarEventIds(queryText, limit) {
+        return embeddings.findSimilarEventIds(queryText, limit);
+      },
+      async findSimilarIngredient(needle, haystack) {
+        // Embed both the needle and each pantry item, pick closest match.
+        // We use cosine distance < 0.35 as the fuzzy threshold.
+        const needleVec = await embedText(normalizeName(needle));
+        if (!needleVec || haystack.length === 0) return null;
+        let bestDist = 0.35; // threshold: similarity > 0.65 in cosine space
+        let bestMatch: string | null = null;
+        for (const item of haystack) {
+          const itemVec = await embedText(item);
+          if (!itemVec) continue;
+          const similarity = cosineSimilarity(needleVec, itemVec);
+          const dist = 1 - similarity;
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestMatch = item;
+          }
+        }
+        return bestMatch;
+      },
+    };
+  }
+
   return {
-    engineVersion: RECOMMENDATION_ENGINE_VERSION_V1,
+    get engineVersion() {
+      return embeddings?.isAvailable()
+        ? RECOMMENDATION_ENGINE_VERSION_V2
+        : RECOMMENDATION_ENGINE_VERSION_V1;
+    },
 
     async recommendMeal(userId, rawInput) {
       const input = createRecommendationSchema.parse(rawInput);
@@ -175,7 +214,11 @@ export function createRecommendationService(
         maxOptions: input.maxOptions,
         now: clock(),
       };
-      const scored = generateOptions(ctx);
+
+      const semanticCtx = buildSemanticContext();
+      const useV2 = semanticCtx !== null;
+      const scored = useV2 ? await generateOptionsV2(ctx, semanticCtx) : generateOptions(ctx);
+
       if (scored.length === 0) {
         scored.push({
           title: 'Stock the kitchen',
@@ -194,6 +237,9 @@ export function createRecommendationService(
           score: 0,
         });
       }
+      const engineVersion = useV2
+        ? RECOMMENDATION_ENGINE_VERSION_V2
+        : RECOMMENDATION_ENGINE_VERSION_V1;
       const id = newId('rec');
       const now = nowIso(clock);
       const options = scored.map(toOption);
@@ -213,7 +259,7 @@ export function createRecommendationService(
           quantity: p.quantity,
           unit: p.unit,
         })),
-        engineVersion: RECOMMENDATION_ENGINE_VERSION_V1,
+        engineVersion,
         recommendedTitle: scored[0]!.title,
         recommendationReason: scored[0]!.reason,
         options,
@@ -249,3 +295,17 @@ export function createRecommendationService(
 }
 
 export * from './engine';
+export * from './engine_v2';
+
+function cosineSimilarity(a: number[], b: number[]): number {
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+  const len = Math.min(a.length, b.length);
+  for (let i = 0; i < len; i++) {
+    dot += (a[i] ?? 0) * (b[i] ?? 0);
+    normA += (a[i] ?? 0) ** 2;
+    normB += (b[i] ?? 0) ** 2;
+  }
+  return normA === 0 || normB === 0 ? 0 : dot / (Math.sqrt(normA) * Math.sqrt(normB));
+}

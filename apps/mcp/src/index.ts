@@ -16,12 +16,12 @@ import { createMcpServer } from './server';
 const config = loadConfig();
 const logger = pino({ level: config.logLevel });
 
-const { db } = createDb({
+const { db, client } = createDb({
   url: config.databaseUrl,
   ...(config.databaseAuthToken !== undefined ? { authToken: config.databaseAuthToken } : {}),
 });
 
-const kernel = await createKernel({ config, db, logger, modules: [foodModule] });
+const kernel = await createKernel({ config, db, client, logger, modules: [foodModule] });
 const auth = await resolveMcpAuth(kernel, process.env['MEMEX_CONNECTION_TOKEN']);
 const server = createMcpServer(kernel, auth);
 

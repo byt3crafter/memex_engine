@@ -4,6 +4,98 @@ All notable changes to Memex are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) loosely and
 the project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] — 2026-05-15
+
+Semantic recall layer for Demeter. The food module can now embed meals and
+recipes into vector space and find what the user has actually eaten before
+that is semantically close to what they are craving. When the sqlite-vec
+extension and local embedding model are available, the recommendation engine
+upgrades from reco@v1 (deterministic) to reco@v2 (deterministic + semantic);
+reco@v1 rows remain valid and fully replayable.
+
+### Schema
+
+- **`recipe_vec(recipe_id TEXT PK, embedding FLOAT[384])`** — vec0 virtual
+  table for recipe embeddings. Applied at runtime by `EmbeddingService` after
+  loading the sqlite-vec extension; skipped gracefully if the extension is
+  absent.
+- **`food_event_vec(food_event_id TEXT PK, embedding FLOAT[384])`** — same
+  for food events. Only actual_meal events are indexed.
+- DDL reference: `packages/modules/food/drizzle/0001_embeddings.sql`.
+
+### Embedding pipeline (`packages/modules/food/src/services/embeddings.ts`)
+
+- Local sentence-transformer via `@huggingface/transformers`
+  (`Xenova/all-MiniLM-L6-v2`, 384-dim). Module-level singleton — loads once,
+  never blocks the write path.
+- Graceful fallback: if model download is disabled
+  (`MEMEX_ALLOW_MODEL_DOWNLOAD` not set) or the model fails to load, all
+  embedding methods return `null` and the system continues with reco@v1.
+- Embed-on-write hooks in `buildFoodServices`: `foodEvents.create` and
+  `recipes.create` / `promoteFromFoodEvent` trigger async embedding that
+  cannot fail the write.
+- `findSimilarMeals(userId, queryText, limit)` — KNN over `food_event_vec`,
+  filtered by user, ordered by distance.
+- `findSimilarRecipes(userId, queryText, limit)` — KNN over `recipe_vec`.
+
+### Recommendation engine v2 (`reco@v2`)
+
+- New file `packages/modules/food/src/services/recommendation/engine_v2.ts`.
+  Pure function taking the same `RecommendationContext` as v1 plus a
+  `SemanticContext` callback pair.
+- **Craving-history boost**: if a craving string semantically matches a past
+  `food_event` that had satisfaction ≥ 4, recipes promoted from that event get
+  a `+0.12` score boost and a "semantically similar to a meal you loved" note.
+- **Fuzzy ingredient boost**: ingredients in a recipe's missing list are
+  matched against pantry items by embedding similarity. A fuzzy match (e.g.
+  "chicken thigh" ≈ "chicken breast") awards a partial `+0.08` boost scaled
+  by the fraction of missing ingredients covered.
+- Stamped `engineVersion: 'reco@v2'` on persisted rows when semantic context
+  fires; reco@v1 rows coexist for replayability.
+- Auto-selects v2 when `EmbeddingService.isAvailable()` returns true;
+  falls back to v1 otherwise — no config change required.
+
+### New MCP tool: `find_similar_meals`
+
+- Input: `{ text: string, limit?: number }` (default 5, max 20).
+- Returns the user's past `actual_meal` food_events ordered by embedding
+  distance to the query — **recall of real eaten meals, not future
+  recommendations**.
+- Returns `{ available: false }` gracefully when semantic recall is disabled.
+
+### Infrastructure
+
+- `@memex/db`: new `loadVecExtension(client): Promise<boolean>` helper with
+  graceful fallback (logs warning, returns false on any error).
+- `ModuleContext` gains optional `client?: Client` forwarded from
+  `createKernel`. Apps pass `client` from `createDb` so modules can load
+  native extensions.
+- `BuildFoodServicesDeps` gains optional `client?: Client`.
+
+### Dependencies added
+
+| Package                           | Where                                 | Purpose                           |
+| --------------------------------- | ------------------------------------- | --------------------------------- |
+| `sqlite-vec@0.1.9`                | `@memex/db`                           | Native vec0 SQLite extension      |
+| `@huggingface/transformers@4.2.0` | `@memex/module-food`                  | all-MiniLM-L6-v2 pipeline         |
+| `@libsql/client`                  | `@memex/kernel`, `@memex/module-food` | Client type for extension loading |
+
+### Tests added
+
+- `embeddings.test.ts` — embedder singleton, CCR-skippable model download
+  test, vec integration test (also skipped without `MEMEX_ALLOW_MODEL_DOWNLOAD=1`).
+- `engine_v2.test.ts` — 5 pure unit tests for v2 scoring, all run without
+  model/extension (mock `SemanticContext`). Tests: null semantic = same as v1,
+  empty semantic = no change, craving-history boost fires, fuzzy ingredient
+  boost fires, v2 scores higher than v1 when semantic fires.
+
+Previously deferred from v0.1.0:
+
+> sqlite-vec + local embeddings (semantic recall in recommendation engine v2,
+> fuzzy recipe retrieval, embedding-based insight clustering). The contracts are
+> in place (engine version field, card schema versioning) so this slots in
+> without breaking consumers.
+
 ## [0.1.0] — 2026-05-01
 
 First public-shape release. The PantryMind v0 prototype (preserved on

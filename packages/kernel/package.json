@@ -18,6 +18,7 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
+    "@libsql/client": "^0.14.0",
     "@memex/db": "workspace:*",
     "@memex/schemas": "workspace:*",
     "drizzle-orm": "^0.36.4",

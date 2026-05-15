@@ -28,7 +28,7 @@ export const foodModule: Module<FoodServices> = defineModule<FoodServices>({
   manifest: {
     id: 'food',
     codename: 'Demeter',
-    version: '0.1.0',
+    version: '0.2.0',
     description:
       'Pantry, meals, recipes, menus, and the outcome-aware recommendation engine. The first Memex module.',
     domain: 'food',
@@ -48,7 +48,11 @@ export const foodModule: Module<FoodServices> = defineModule<FoodServices>({
   },
   migrationsFolder: migrationsFolder(),
   cards: foodCardContributions,
-  buildServices: (ctx) => buildFoodServices({ db: ctx.db }),
+  buildServices: (ctx) =>
+    buildFoodServices({
+      db: ctx.db,
+      ...(ctx.client !== undefined ? { client: ctx.client } : {}),
+    }),
   buildRoutes: (services) => foodRoutes(services),
   buildMcpTools: (services) => buildFoodMcpTools(services),
   buildExportData: async (services, userId) => ({

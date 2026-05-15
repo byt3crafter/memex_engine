@@ -282,5 +282,39 @@ export function buildFoodMcpTools(services: FoodServices): McpToolContribution[]
         return json({ review });
       },
     },
+    {
+      name: 'find_similar_meals',
+      description:
+        'Semantic recall: surface actual meals the user has eaten before that match a free-text query. Returns past food_event records ordered by embedding similarity — not future recommendations, but memory of real eaten meals. Requires the sqlite-vec extension and local embedding model to be available; returns an empty list if semantic recall is disabled.',
+      inputSchema: z.object({
+        text: z
+          .string()
+          .min(1)
+          .max(500)
+          .describe('Free-text query, e.g. "something light and soupy"'),
+        limit: z.number().int().min(1).max(20).default(5),
+      }),
+      handler: async (raw, ctx) => {
+        const input = z
+          .object({
+            text: z.string().min(1).max(500),
+            limit: z.number().int().min(1).max(20).default(5),
+          })
+          .parse(raw);
+        if (!services.embeddings) {
+          return json({
+            meals: [],
+            available: false,
+            hint: 'Semantic recall requires the sqlite-vec extension and embedding model. Not available in this deployment.',
+          });
+        }
+        const meals = await services.embeddings.findSimilarMeals(
+          ctx.userId,
+          input.text,
+          input.limit,
+        );
+        return json({ meals, available: true, count: meals.length });
+      },
+    },
   ];
 }

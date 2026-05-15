@@ -7,6 +7,7 @@
  * Phase 1 adds the kernel-level services (user, connection, pairing).
  */
 import { applyKernelMigrations, applyMigrationsFromFolder, type Db } from '@memex/db';
+import type { Client } from '@libsql/client';
 import type { Logger } from 'pino';
 import { CardSchemaRegistry, type CardSchemaContribution } from './cards';
 import type { AppConfig } from './config';
@@ -20,6 +21,9 @@ import type { Clock } from './util/time';
 export interface CreateKernelOptions {
   config: AppConfig;
   db: Db;
+  /** Raw libsql client — optional. When provided it is forwarded into each
+   *  module's ModuleContext so modules can load native SQLite extensions. */
+  client?: Client;
   logger: Logger;
   // `Module<unknown>` is invariant under exactOptionalPropertyTypes, so
   // a heterogeneous array of differently-typed modules wouldn't fit.
@@ -47,7 +51,7 @@ export interface Kernel {
 }
 
 export async function createKernel(options: CreateKernelOptions): Promise<Kernel> {
-  const { config, db, logger, modules, clock } = options;
+  const { config, db, client, logger, modules, clock } = options;
   const registry = new ModuleRegistry();
   const cards = new CardSchemaRegistry();
 
@@ -92,7 +96,13 @@ export async function createKernel(options: CreateKernelOptions): Promise<Kernel
         );
       }
     }
-    const ctx: ModuleContext = { config, db, logger, kernel: handle };
+    const ctx: ModuleContext = {
+      config,
+      db,
+      ...(client !== undefined ? { client } : {}),
+      logger,
+      kernel: handle,
+    };
     const services = module.buildServices(ctx);
     registry.register(module, services);
     logger.info(

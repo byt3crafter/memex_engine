@@ -61,7 +61,9 @@ export function createOnboardingService(deps: OnboardingDeps): OnboardingService
   const clock = deps.clock ?? systemClock;
   const k = deps.kernel as Kernel;
 
-  async function findOrCreateMemexUser(tg: NonNullable<TelegramUpdate['message']>['from']): Promise<{
+  async function findOrCreateMemexUser(
+    tg: NonNullable<TelegramUpdate['message']>['from'],
+  ): Promise<{
     userId: string;
     isNew: boolean;
   }> {
@@ -117,7 +119,10 @@ export function createOnboardingService(deps: OnboardingDeps): OnboardingService
     return { userId: user.id, isNew: true };
   }
 
-  async function issueConnection(userId: string, name: string): Promise<{ token: string; tokenPrefix: string }> {
+  async function issueConnection(
+    userId: string,
+    name: string,
+  ): Promise<{ token: string; tokenPrefix: string }> {
     const issued = await k.services.connections.issue({
       userId,
       name,
@@ -128,12 +133,18 @@ export function createOnboardingService(deps: OnboardingDeps): OnboardingService
     return { token: issued.token, tokenPrefix: issued.connection.tokenPrefix };
   }
 
-  function welcomeMessage(token: string, isNew: boolean, modules: { id: string; codename: string }[]): string {
-    const moduleList = modules.map((m) => `• <b>${ESC(m.codename)}</b> — <code>${ESC(m.id)}</code>`).join('\n');
-    const greeting = isNew
-      ? '🧠 <b>Welcome to Memex</b>'
-      : '🧠 <b>Welcome back</b>';
-    const note = isNew ? 'Your account has been created.' : 'A new connection token has been issued.';
+  function welcomeMessage(
+    token: string,
+    isNew: boolean,
+    modules: { id: string; codename: string }[],
+  ): string {
+    const moduleList = modules
+      .map((m) => `• <b>${ESC(m.codename)}</b> — <code>${ESC(m.id)}</code>`)
+      .join('\n');
+    const greeting = isNew ? '🧠 <b>Welcome to Memex</b>' : '🧠 <b>Welcome back</b>';
+    const note = isNew
+      ? 'Your account has been created.'
+      : 'A new connection token has been issued.';
     return `${greeting}
 
 ${note}
@@ -173,7 +184,9 @@ ${moduleList}
   }
 
   async function listConnectionsText(userId: string): Promise<string> {
-    const conns = (await k.services.connections.listForUser(userId)).filter((c) => c.revokedAt == null);
+    const conns = (await k.services.connections.listForUser(userId)).filter(
+      (c) => c.revokedAt == null,
+    );
     if (conns.length === 0) return '<i>No active connections.</i> Send /newkey to create one.';
     return conns
       .map((c) => `• <code>${ESC(c.tokenPrefix)}…</code> — ${ESC(c.name)} (${ESC(c.kind)})`)
