@@ -101,6 +101,7 @@ const COLUMNS: [table: string, column: string, definition: string][] = [
   ['agents', 'discoverable', 'INTEGER NOT NULL DEFAULT 0'],
   ['agents', 'paused', 'INTEGER NOT NULL DEFAULT 0'],
   ['agents', 'telegram_chat_id', 'TEXT'],
+  ['agents', 'telegram_notify', "TEXT NOT NULL DEFAULT 'all'"],
   ['invites', 'target_id', 'TEXT REFERENCES agents(id)'],
   ['invites', 'approval', "TEXT NOT NULL DEFAULT 'auto'"],
   ['invites', 'include_agents', 'INTEGER NOT NULL DEFAULT 0'],
@@ -1256,6 +1257,22 @@ export class Store {
       ref.conversationId ?? null,
       ref.approvalId ?? null,
     );
+  }
+
+  telegramMessagesForApproval(approvalId: string): { chatId: string; messageId: number }[] {
+    return this.all<Row>('SELECT chat_id, message_id FROM telegram_messages WHERE approval_id = ?', approvalId).map((r) => ({
+      chatId: String(r.chat_id),
+      messageId: Number(r.message_id),
+    }));
+  }
+
+  telegramPrefs(principalId: string): { chatId: string | null; notify: 'all' | 'approvals' } {
+    const r = this.get<Row>('SELECT telegram_chat_id, telegram_notify FROM agents WHERE id = ?', principalId);
+    return { chatId: str(r?.telegram_chat_id), notify: r?.telegram_notify === 'approvals' ? 'approvals' : 'all' };
+  }
+
+  setTelegramNotify(principalId: string, notify: 'all' | 'approvals'): void {
+    this.run('UPDATE agents SET telegram_notify = ? WHERE id = ?', notify, principalId);
   }
 
   telegramMessage(chatId: string, messageId: number): { conversationId: string | null; approvalId: string | null } | null {

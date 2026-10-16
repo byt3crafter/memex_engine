@@ -4,9 +4,19 @@ import type { GatewayEvent, Task } from './types.js';
 /** Fans store events out to live listeners (event streams, A2A streams, blocking calls). */
 export class Hub {
   private listeners = new Map<string, Set<(e: GatewayEvent) => void>>();
+  private everyone = new Set<(principalId: string, e: GatewayEvent) => void>();
 
   constructor(private readonly store: Store) {
-    store.onEvent = (principalId, event) => this.listeners.get(principalId)?.forEach((fn) => fn(event));
+    store.onEvent = (principalId, event) => {
+      this.listeners.get(principalId)?.forEach((fn) => fn(event));
+      this.everyone.forEach((fn) => fn(principalId, event));
+    };
+  }
+
+  /** Every principal's events (bridges such as Telegram that serve many people). */
+  subscribeAll(fn: (principalId: string, e: GatewayEvent) => void): () => void {
+    this.everyone.add(fn);
+    return () => this.everyone.delete(fn);
   }
 
   subscribe(principalId: string, fn: (e: GatewayEvent) => void): () => void {

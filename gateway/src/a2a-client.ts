@@ -8,7 +8,9 @@ import {
   JsonRpcTransportFactory,
   RestTransportFactory,
 } from '@a2a-js/sdk/client';
-import type { Client } from '@a2a-js/sdk/client';
+import type { Client, RequestOptions } from '@a2a-js/sdk/client';
+import { GrpcTransportFactory } from '@a2a-js/sdk/client/grpc';
+import * as grpc from '@grpc/grpc-js';
 import type { A2AMessage, A2ATask } from './a2a.js';
 import { configDir, loadConfig } from './client.js';
 import { newId } from './auth.js';
@@ -65,6 +67,7 @@ export async function connectA2A(
   url: string,
   token: string | undefined,
   wait = true,
+  preferredTransports: string[] = ['JSONRPC', 'HTTP+JSON', 'GRPC'],
 ): Promise<Client> {
   const fetchImpl = withAuth(token);
   const legacyCompat = { enabled: true };
@@ -73,13 +76,30 @@ export async function connectA2A(
       transports: [
         new JsonRpcTransportFactory({ fetchImpl, legacyCompat }),
         new RestTransportFactory({ fetchImpl, legacyCompat }),
+        // gRPC over TLS unless AGW_A2A_GRPC_INSECURE=1 (local setups).
+        new GrpcTransportFactory({
+          grpcChannelCredentials:
+            process.env.AGW_A2A_GRPC_INSECURE === '1'
+              ? grpc.credentials.createInsecure()
+              : grpc.credentials.createSsl(),
+          legacyCompat,
+        }),
       ],
+      preferredTransports: preferredTransports as never,
       cardResolver: new DefaultAgentCardResolver({ fetchImpl, legacyCompat }),
       clientConfig: { polling: !wait },
     }),
   );
   const { base, path } = cardLocation(url);
   return factory.createFromUrl(base, path);
+}
+
+/**
+ * Per-call options carrying the bearer token. HTTP transports send it as a header; gRPC
+ * sends it as metadata (gRPC won't attach call credentials to a plaintext channel).
+ */
+export function authOptions(token: string | undefined): RequestOptions {
+  return token ? { serviceParameters: { authorization: `Bearer ${token}` } } : {};
 }
 
 export async function getAgentCard(url: string, token?: string): Promise<unknown> {
@@ -100,6 +120,8 @@ export interface SendOptions {
   /** Continue an existing task (e.g. answer `input_required`). */
   taskId?: string | undefined;
   contextId?: string | undefined;
+  /** Files to send as inline parts (base64 data). */
+  files?: { filename: string; mediaType: string; data: string }[] | undefined;
   /** Block until the task finishes or needs input (default), or return straight away. */
   wait?: boolean;
 }
@@ -109,7 +131,8 @@ export async function sendA2A(
   text: string,
   opts: SendOptions = {},
 ): Promise<{ task: A2ATask } | { message: A2AMessage }> {
-  const client = await connectA2A(url, resolveToken(url, opts.token), opts.wait ?? true);
+  const token = resolveToken(url, opts.token);
+  const client = await connectA2A(url, token, opts.wait ?? true);
   const metadata = Object.fromEntries(
     Object.entries({ kind: opts.kind, project: opts.project, title: opts.title }).filter(
       ([, v]) => v !== undefined,
@@ -119,29 +142,34 @@ export async function sendA2A(
     message: {
       messageId: newId('msg'),
       role: 'ROLE_USER',
-      parts: [{ text }],
+      parts: [
+        { text },
+        ...(opts.files ?? []).map((f) => ({ raw: f.data, filename: f.filename, mediaType: f.mediaType })),
+      ],
       ...(opts.taskId ? { taskId: opts.taskId } : {}),
       ...(opts.contextId ? { contextId: opts.contextId } : {}),
       ...(Object.keys(metadata).length ? { metadata } : {}),
     },
   });
-  const result = await client.sendMessage(request);
+  const result = await client.sendMessage(request, authOptions(token));
   return 'status' in result
     ? { task: Task.toJSON(result) as A2ATask }
     : { message: Message.toJSON(result) as A2AMessage };
 }
 
 export async function getA2ATask(url: string, taskId: string, token?: string): Promise<A2ATask> {
-  const client = await connectA2A(url, resolveToken(url, token), true);
+  const auth = resolveToken(url, token);
+  const client = await connectA2A(url, auth, true);
   return Task.toJSON(
-    await client.getTask({ tenant: '', id: taskId, historyLength: undefined }),
+    await client.getTask({ tenant: '', id: taskId, historyLength: undefined }, authOptions(auth)),
   ) as A2ATask;
 }
 
 export async function cancelA2ATask(url: string, taskId: string, token?: string): Promise<A2ATask> {
-  const client = await connectA2A(url, resolveToken(url, token), true);
+  const auth = resolveToken(url, token);
+  const client = await connectA2A(url, auth, true);
   return Task.toJSON(
-    await client.cancelTask({ tenant: '', id: taskId, metadata: undefined }),
+    await client.cancelTask({ tenant: '', id: taskId, metadata: undefined }, authOptions(auth)),
   ) as A2ATask;
 }
 

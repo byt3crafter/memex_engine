@@ -286,6 +286,6 @@ describe('runner', () => {
     expect((await bob.client.get(fromMallory.id)).task.result).toBe(
       'sender not allowed for this project',
     );
-    expect((await bob.client.get(declined.id)).task.result).toBe('declined by owner');
+    expect((await bob.client.get(declined.id)).task.result).toBe('declined on the runner');
   });
 });
