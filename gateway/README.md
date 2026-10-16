@@ -1,251 +1,321 @@
-# Agent Gateway (MVP)
+# Agent Gateway
 
-Let AI agents — Claude Code, Gemini CLI, Codex, OpenClaw, anything that speaks MCP, HTTP or
-[A2A](https://a2a-protocol.org) — send each other messages and tasks, across machines, projects and owners.
+A message system for **people and AI agents together**. Claude Code, Gemini CLI, Codex,
+OpenClaw, or anything that speaks MCP, HTTP or [A2A](https://a2a-protocol.org) can talk to
+each other and to people, across machines, projects and owners. Owners stay in control of
+their agents.
 
 ```
- Alice's laptop                       Gateway                         Bob's laptop
-┌──────────────┐  MCP / CLI   ┌──────────────────────┐   live stream  ┌──────────────┐
-│ Claude Code  │─────────────►│ agents · channels    │───────────────►│  agw run     │
-│ (alice)      │◄─────────────│ tasks · event log    │◄───────────────│  (runner)    │
-└──────────────┘   results    └──────────────────────┘   status/result│      │       │
-                                                                      │      ▼       │
-                                                                      │ gemini -p …  │
-                                                                      │ in ~/proj/x  │
-                                                                      └──────────────┘
+  You                     Agent Gateway                        Your boss
+┌───────────────┐      ┌──────────────────────────┐      ┌─────────────────────┐
+│ web / phone   │─────►│ people · agents · access │◄────►│ Telegram: approve,  │
+│ Claude Code   │ MCP  │ conversations · approvals│      │ reply, pause        │
+│ (your agent)  │◄─────│ tasks · files · events   │─────►│ OpenClaw (his agent)│
+└───────────────┘      └────────────┬─────────────┘ run  └─────────────────────┘
+                                    │ A2A (JSON-RPC, HTTP+JSON, gRPC)
+                                    ▼
+                         any A2A agent on the internet
 ```
 
-It is standalone on purpose: it lives in this repo for now but does not depend on Memex,
-so it can move to its own repository unchanged.
+It is standalone: it lives in this repo for now but does not depend on Memex, so it can
+move to its own repository unchanged.
+
+## The scenario it is built for
+
+Your boss has an OpenClaw agent he talks to on Telegram. He wants you, and your Claude, to be
+able to use it, without handing over his machine or his Telegram, and while seeing and
+controlling everything.
+
+1. **He shares his agent.** In the web app (Agents → Share) or `agw invite --agent boss-openclaw`,
+   he picks what you may do (ask questions, give tasks) and how much he controls:
+   - **Approve each request** (default): he sees every request first, and can edit it.
+   - **Approve requests and replies**: his agent's answers wait for him too.
+   - **Full control**: you and your Claude direct his agent directly. He still sees everything
+     and can pause or revoke at any time.
+2. **You redeem the code** (Settings → Redeem, or `agw redeem`). Your own agents (your Claude)
+   get the same access unless he unticks "their agents too".
+3. **You talk.** Start a conversation with `boss-openclaw` from the web app, from Claude Code
+   ("ask boss-openclaw for the Q3 numbers"), or from the CLI. Conversations can mix any number
+   of people and agents; `@mention` an agent to address it.
+4. **He decides.** Requests land in his approval queue: in the web app and on Telegram, with
+   Approve/Reject buttons (reply with text to approve an edited version). His agent never sees a
+   request until he approves it.
+5. **His agent answers.** `agw run` on his machine starts OpenClaw with the request and the
+   conversation so far (one OpenClaw session per conversation, so it remembers the thread) and
+   posts the reply back into the conversation.
 
 ## Concepts
 
-| Thing       | What it is                                                                                                                                            |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Agent**   | An identity with a handle (`alice-claude`) and a bearer token. One per agent install.                                                                 |
-| **Invite**  | A short pairing code like `AGW-7K2QM-9XDHP`. Single-use, expires (24h default).                                                                       |
-| **Channel** | Created by redeeming a code: the redeemer may now send to the issuer, with scopes. One-way unless the code was `--mutual`. Either side can revoke it. |
-| **Scope**   | `message` (questions, read-only) or `task` (work that may change files).                                                                              |
-| **Task**    | A message or task with a thread and A2A-style status: `submitted → working → completed / failed / rejected`, plus `input_required` and `canceled`.    |
-| **Runner**  | `agw run` on the recipient's machine. Listens for tasks and starts the configured agent CLI headless in the mapped project folder.                    |
+| Thing            | What it is                                                                                                                              |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **Person**       | Signs in with a password (web app, CLI). Owns agents, approves requests, chats.                                                         |
+| **Agent**        | An identity with a token, usually owned by a person. Receives tasks; can chat via MCP.                                                  |
+| **Access**       | Created by redeeming an invite code: who may use which agent, with scopes, approval mode, expiry. Revocable by both sides.              |
+| **Scope**        | `message` (questions; the agent changes nothing) or `task` (work that may change files).                                                |
+| **Conversation** | People and agents together. Messages to agents become tasks. Owners of agents in a conversation join it as overseers automatically.     |
+| **Approval**     | A request (or reply) waiting for an agent's owner: approve, edit, or reject with a note.                                                |
+| **Task**         | One unit of work for an agent, A2A-style: `submitted → working → completed / failed / rejected`, plus `input_required` and owner holds. |
+| **Runner**       | `agw run` on an agent's machine: listens and runs Claude Code, Gemini CLI, Codex or OpenClaw for each task.                             |
 
-## Quickstart (two agents, one machine)
+## Quickstart
 
 ```bash
 cd gateway
-pnpm install
-pnpm build
+pnpm install && pnpm build
+npm link                                  # puts `agw` on your PATH (or use: node dist/cli.js)
 
-# 1. Run a gateway
-node dist/cli.js serve                     # http://127.0.0.1:7420
-
-# 2. Two identities (AGW_HOME keeps their configs apart; normally each lives on its own machine)
-AGW_HOME=/tmp/alice node dist/cli.js register alice --url http://127.0.0.1:7420
-AGW_HOME=/tmp/bob   node dist/cli.js register bob   --url http://127.0.0.1:7420
-
-# 3. Bob makes a code, Alice redeems it -> Alice may now send to Bob
-AGW_HOME=/tmp/bob   node dist/cli.js invite --scopes message,task
-AGW_HOME=/tmp/alice node dist/cli.js redeem AGW-XXXXX-XXXXX
-
-# 4. Bob's runner listens (see runner.json below)
-AGW_HOME=/tmp/bob node dist/cli.js run
-
-# 5. Alice sends and waits for the answer
-AGW_HOME=/tmp/alice node dist/cli.js send bob "Summarise the README" --project demo --wait
+agw serve                                 # http://127.0.0.1:7420 — open /app in a browser
 ```
 
-Install it globally with `npm link` (or `pnpm link --global`) to get a plain `agw` command.
+Open `http://127.0.0.1:7420/app`, create an account, create an agent (Agents → New agent) and
+connect it (the dialog shows the commands). On a phone, use "Add to Home Screen" to install it.
 
-## Give an agent the gateway (MCP)
+The same from the command line:
 
-`agw mcp` is a stdio MCP server exposing: `gateway_send`, `gateway_inbox`, `gateway_get_task`,
-`gateway_reply`, `gateway_update_task`, `gateway_wait_for_task`, `gateway_create_invite`,
-`gateway_redeem_invite`, `gateway_whoami`, plus `a2a_get_card`, `a2a_send` and `a2a_get_task`
-for any A2A agent (see below).
+```bash
+agw signup boss --url http://127.0.0.1:7420
+agw agent create boss-openclaw --description "Boss's OpenClaw" --home ~/.agw-openclaw
+agw invite --agent boss-openclaw --scopes message,task          # prints AGW-XXXXX-XXXXX
+
+# the employee, on their machine
+agw signup ludo --url http://gateway.example.com
+agw redeem AGW-XXXXX-XXXXX
+agw chat new --title "Q3" boss-openclaw
+agw chat send <conversation> "@boss-openclaw what was Q3 revenue?"
+
+# the boss
+agw approvals
+agw approve <id> --edit "What was Q3 revenue? Totals only."
+AGW_HOME=~/.agw-openclaw agw run          # his agent starts answering
+```
+
+Run `agw --help` for every command.
+
+## Connecting agents
+
+### MCP (Claude Code, Gemini CLI, Codex, OpenClaw)
+
+`agw mcp` is a stdio MCP server. With an agent's token it gives the agent:
+
+- **Conversations:** `chat_list`, `chat_read`, `chat_send`, `chat_create`
+- **Tasks:** `gateway_send`, `gateway_inbox`, `gateway_get_task`, `gateway_reply`,
+  `gateway_update_task`, `gateway_wait_for_task`
+- **Access:** `gateway_create_invite`, `gateway_redeem_invite`, `gateway_whoami`
+- **A2A:** `a2a_get_card`, `a2a_send`, `a2a_get_task`
+
+Signed in as a person (`agw login`), it adds `approvals_list` and `approval_decide`, so your own
+assistant can handle your approvals when you tell it to.
 
 ```bash
 # Claude Code
-claude mcp add agw -- node /path/to/gateway/dist/cli.js mcp
+claude mcp add agw -e AGW_URL=https://gateway.example.com -e AGW_TOKEN=<agent token> -- agw mcp
 
 # Gemini CLI (~/.gemini/settings.json)
-{ "mcpServers": { "agw": { "command": "node", "args": ["/path/to/gateway/dist/cli.js", "mcp"] } } }
+{ "mcpServers": { "agw": { "command": "agw", "args": ["mcp"],
+    "env": { "AGW_URL": "https://gateway.example.com", "AGW_TOKEN": "<agent token>" } } } }
 
 # Codex (~/.codex/config.toml)
 [mcp_servers.agw]
-command = "node"
-args = ["/path/to/gateway/dist/cli.js", "mcp"]
+command = "agw"
+args = ["mcp"]
+env = { AGW_URL = "https://gateway.example.com", AGW_TOKEN = "<agent token>" }
 ```
 
-Then just ask: _"Send bob a task in the `api` project to add rate limiting, and wait for the result."_
+**OpenClaw:** add the same stdio server under `mcp.servers` in `~/.openclaw/openclaw.json`
+(name `agw`, command `agw`, args `["mcp"]`), and install the skill so it knows when to use it:
 
-## The runner: making agents "listen"
+```bash
+openclaw skills install ./integrations/openclaw/agent-gateway
+```
 
-Agent CLIs only run when started. `agw run` keeps a live connection to the gateway and, per task:
+Then from Telegram your boss can say _"ask ludo-claude to fix the login bug"_ or _"what's
+waiting for my approval?"_.
+
+### The runner: agents that listen
+
+CLI agents only run when started. `agw run` keeps a live connection and, for each task:
 
 1. checks the project exists, accepts this kind, and the sender is in `allowFrom`;
-2. asks you on the terminal (`approval: "prompt"`, the default) or runs straight away (`"auto"`);
-3. starts the agent headless in the project folder with the task wrapped as untrusted input;
-4. posts stdout back as the result. Output starting with `NEEDS_INPUT:` sets `input_required`;
-   when the sender replies, the task comes back to the runner with the thread.
-
-Tasks run one at a time. Missed tasks are picked up on reconnect.
+2. for agents without an owner, asks on the terminal (`approval: "prompt"`). Owned agents run
+   straight away, because the owner's rules already ran on the gateway (override with `approval`);
+3. runs the agent in the project folder with the request, the recent conversation and any
+   attachments (saved to `<project>/.agw/inbox/<task>/`), all marked as untrusted;
+4. posts the output back into the conversation. Output starting with `NEEDS_INPUT:` asks the
+   sender a question; their answer comes back to the same task.
 
 `~/.agw/runner.json`:
 
 ```json
 {
-  "defaultProject": "api",
+  "defaultProject": "main",
   "projects": {
-    "api": {
-      "path": "/home/bob/code/api",
-      "agent": "claude",
-      "allow": ["message", "task"],
-      "allowFrom": ["alice"],
-      "approval": "prompt",
-      "timeoutSeconds": 900
+    "main": {
+      "path": "/home/boss/openclaw-workspace",
+      "agent": "openclaw",
+      "allow": ["message", "task"]
     },
-    "docs": { "path": "/home/bob/code/docs", "agent": "gemini", "approval": "auto" }
+    "api": { "path": "/home/ludo/code/api", "agent": "claude", "allow": ["message", "task"] }
   },
   "agents": {
-    "claude-yolo-in-container": {
-      "task": ["docker", "run", "--rm", "-v", ".:/w", "my-claude-image", "claude", "-p", "{prompt}"]
+    "openclaw-ops": {
+      "message": [
+        "openclaw",
+        "agent",
+        "--agent",
+        "ops",
+        "--session-id",
+        "agw-{conversation}",
+        "--message-file",
+        "{promptFile}",
+        "--json"
+      ],
+      "output": "openclaw-json"
     }
   }
 }
 ```
 
-Built-in presets (override any in `agents`):
+Placeholders: `{prompt}`, `{promptFile}`, `{conversation}`, `{task}`, `{project}`.
 
-| Preset   | `message` (read-only)                     | `task` (may edit files in the project)             |
-| -------- | ----------------------------------------- | -------------------------------------------------- |
-| `claude` | `claude -p {prompt}`                      | `claude -p {prompt} --permission-mode acceptEdits` |
-| `gemini` | `gemini -p {prompt}`                      | `gemini -p {prompt} --approval-mode auto_edit`     |
-| `codex`  | `codex exec --sandbox read-only {prompt}` | `codex exec --sandbox workspace-write {prompt}`    |
-| `echo`   | prints the prompt length — for testing    | same                                               |
+| Preset     | `message` (read-only)                                                                                                                   | `task` (may edit files in the project)             |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `claude`   | `claude -p {prompt}`                                                                                                                    | `claude -p {prompt} --permission-mode acceptEdits` |
+| `gemini`   | `gemini -p {prompt}`                                                                                                                    | `gemini -p {prompt} --approval-mode auto_edit`     |
+| `codex`    | `codex exec --sandbox read-only {prompt}`                                                                                               | `codex exec --sandbox workspace-write {prompt}`    |
+| `openclaw` | `openclaw agent --session-id agw-{conversation} --message-file {promptFile} --json` (both kinds; one OpenClaw session per conversation) |                                                    |
+| `echo`     | prints the prompt length, for testing                                                                                                   | same                                               |
+
+## Owner control
+
+| You want to…                       | Web app                                                      | CLI                                                   | Telegram                         |
+| ---------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------- | -------------------------------- |
+| share an agent                     | Agents → Share                                               | `agw invite --agent <a> --approval …`                 |                                  |
+| approve / edit / reject a request  | Approvals                                                    | `agw approve <id> [--edit]`, `agw reject <id> --note` | buttons; reply with text to edit |
+| review replies before they're sent | access → "requests and replies"                              | `agw access set <id> --approval all`                  | same buttons                     |
+| give full control                  | access → "Full control"                                      | `agw access set <id> --approval auto`                 |                                  |
+| stop everything now                | Agents → Paused                                              | `agw agent pause <a>`                                 | `/pause <a>`                     |
+| take a task over yourself          |                                                              | `agw` / API: set the task's status                    |                                  |
+| remove someone's access            | Agents → Revoke                                              | `agw revoke <id>`                                     |                                  |
+| see everything                     | you're in every conversation your agents are in, as overseer | `agw chats`                                           | all messages, or `/quiet`        |
+
+## Telegram
+
+Set `AGW_TELEGRAM_BOT_TOKEN` (from @BotFather) and optionally `AGW_TELEGRAM_BOT_USERNAME`, then
+`agw serve`. The bridge uses long polling, so no public URL is needed. Each person links their
+chat in the web app (Settings → Link Telegram → send `/start <code>` to the bot). You get:
+
+- approval requests with **Approve / Reject** buttons; reply with text to approve your edited version;
+- conversation messages (or approvals only with `/quiet`); reply to one to answer in that conversation;
+- `/pending`, `/agents`, `/pause <agent>`, `/resume <agent>`, `/all`, `/unlink`.
 
 ## A2A (Agent2Agent protocol)
 
-The gateway speaks [A2A v1.0](https://a2a-protocol.org/latest/specification/), the open
-agent-to-agent protocol started by Google and now under the Linux Foundation, in both directions.
-Compatibility is tested against Google's official SDK, [`@a2a-js/sdk`](https://www.npmjs.com/package/@a2a-js/sdk).
+The gateway speaks [A2A v1.0](https://a2a-protocol.org/latest/specification/) in both
+directions, on all three bindings. Compatibility is tested with Google's official SDK clients,
+[`@a2a-js/sdk`](https://www.npmjs.com/package/@a2a-js/sdk), for each binding.
 
-### Every gateway agent is an A2A agent
+| Binding    | Where                                           | Agent selection            |
+| ---------- | ----------------------------------------------- | -------------------------- |
+| JSON-RPC   | `POST /a2a/{handle}`                            | in the URL                 |
+| HTTP+JSON  | `/a2a-rest/{handle}/message:send`, `/tasks/…`   | A2A `tenant` = handle      |
+| gRPC       | `agw serve --grpc-port 7421`                    | A2A `tenant` = handle      |
+| Agent card | `GET /a2a/{handle}/.well-known/agent-card.json` | lists all three interfaces |
 
-| Endpoint                                        | What                                         |
-| ----------------------------------------------- | -------------------------------------------- |
-| `GET /a2a/{handle}/.well-known/agent-card.json` | Agent card (public): skills, auth, interface |
-| `POST /a2a/{handle}`                            | JSON-RPC 2.0 binding                         |
+- **Methods:** `SendMessage` (blocks until the task settles, for as long as the caller stays
+  connected, or `returnImmediately`), `SendStreamingMessage`, `GetTask`, `ListTasks`, `CancelTask`,
+  `SubscribeToTask`, and push notification configs (create/get/list/delete).
+- **Push notifications:** register a webhook (in `SendMessage` configuration or with
+  `CreateTaskPushNotificationConfig`); each update is POSTed as a `StreamResponse`
+  (`application/a2a+json`), with your `token` in `X-A2A-Notification-Token` or your
+  `authentication` as `Authorization`. Webhooks to private addresses are refused unless the
+  server allows them.
+- **Same rules as everyone:** callers authenticate with a gateway token and need access, granted
+  by the owner. Owner approval shows as `TASK_STATE_SUBMITTED` with a "waiting for the owner"
+  status message. A2A `contextId` is the conversation id.
+- **Parts:** text passes through, `data` as JSON, `url` as a link, inline `raw` files become
+  attachments the agent can read.
+- **Discovery:** agent cards are private by default (404 without access). Owners list an agent
+  publicly with Agents → "Public A2A card" or `agw agent list-public <handle>`.
+- Gateway extras go in message metadata: `{"kind": "task", "project": "api"}`.
 
-Supported methods: `SendMessage` (blocking by default, or `configuration.returnImmediately`),
-`SendStreamingMessage` (SSE: task → status updates → result artifact), `GetTask`, `ListTasks`
-(with `contextId`, `status`, paging), `CancelTask`, `SubscribeToTask`. Push notifications and
-extended cards return their spec errors (`-32003`, `-32007`).
-
-How A2A maps onto the gateway:
-
-- **Auth is the same as everywhere else.** An A2A client sends `Authorization: Bearer <gateway token>`
-  and needs a channel to the agent: register (`POST /v1/agents`), then redeem the owner's invite code
-  (`POST /v1/invites/redeem`). No channel → HTTP 403; wrong scope → HTTP 403.
-- **A2A tasks are gateway tasks.** They land in the recipient's inbox, the runner runs them, and the
-  runner's output comes back as the `result` artifact. `NEEDS_INPUT:` becomes `TASK_STATE_INPUT_REQUIRED`;
-  the caller answers by sending a message with that `taskId`.
-- **Gateway extras go in message metadata:** `{"kind": "task", "project": "api", "title": "..."}`.
-  Without them a message is a read-only `message` with no project (the runner's `defaultProject`).
-- **Parts:** `text` is passed through, `data` is included as JSON, `url` as a link. Inline `raw`
-  files are not supported yet.
-- Blocking `SendMessage` waits up to 5 minutes, then returns the task as it stands; poll with `GetTask`
-  or use streaming for longer work. Callers that omit the `A2A-Version` header are accepted; explicit
-  versions other than 1.x get `VersionNotSupportedError`.
-- Set `AGW_PUBLIC_URL` when the gateway runs behind a proxy so cards advertise the right URL.
-
-```bash
-curl -s http://127.0.0.1:7420/a2a/bob/.well-known/agent-card.json
-
-curl -s http://127.0.0.1:7420/a2a/bob -H "Authorization: Bearer $ALICE_TOKEN" \
-  -H 'content-type: application/json' -H 'A2A-Version: 1.0' -d '{
-    "jsonrpc": "2.0", "id": 1, "method": "SendMessage",
-    "params": { "message": { "messageId": "m1", "role": "ROLE_USER",
-      "parts": [{ "text": "Add rate limiting to /login" }],
-      "metadata": { "kind": "task", "project": "api" } } } }'
-```
-
-### Calling any A2A agent
-
-Gateway agents can call any A2A agent (Google ADK agents, other gateways, …). The official
-SDK picks the transport (JSON-RPC or HTTP+JSON) from the agent card and also talks to older v0.3 agents.
+**Calling any A2A agent** (Google ADK agents, other gateways…): the official SDK picks the
+transport from the card and also talks to v0.3 agents.
 
 ```bash
 agw a2a card https://agent.example.com
-agw a2a send https://agent.example.com "Find flights SFO to JFK"
-agw a2a send https://agent.example.com "From SFO" --task-id <id>       # answer input-required
-agw a2a get  https://agent.example.com <task-id>
-agw a2a send http://127.0.0.1:7420/a2a/bob "hi"                        # gateway agents work too
+agw a2a send https://agent.example.com "Find flights SFO to JFK" [--file brief.pdf]
+agw a2a send https://agent.example.com "From SFO" --task-id <id>     # answer input-required
 ```
 
-Credentials for outside agents live in `~/.agw/a2a.json`, matched by URL prefix (or pass `--token`):
-
-```json
-{ "https://agent.example.com": "their-bearer-token" }
-```
-
-Agents on your own gateway use your gateway token automatically. In an agent, the `a2a_send` MCP
-tool does the same, so tokens never pass through the model. Replies are fenced as untrusted.
+Credentials for outside agents go in `~/.agw/a2a.json` (`{"https://agent.example.com": "token"}`,
+matched by URL prefix); agents on your own gateway use your token automatically.
 
 ## Security model
 
-A message from another agent is untrusted input — a prompt-injection vector by definition. The
-MVP's defences, in order of strength:
+A message from someone else's agent is untrusted input, a prompt-injection vector by definition.
 
-1. **No channel, no delivery.** You can only send to agents whose code you redeemed, within its scopes.
-   Over the REST API, unknown handles and missing channels return the same error. Handles themselves aren't
-   secret: each agent's A2A card is public so it can be discovered. Only a channel lets anyone send.
-2. **The runner enforces, not the model.** Project allow-list, kind, `allowFrom`, and terminal approval
-   are checked before any agent starts.
-3. **Least privilege per kind.** `message` runs read-only; `task` gets edit rights in its folder only.
-   No preset enables shell auto-approval / yolo modes — put those inside a container if you want them.
-4. **Fencing.** Every piece of third-party text reaches a model inside
-   `<agent_message trust="untrusted">…</agent_message>` with a note to treat it as data
-   (fake closing tags are escaped).
-5. **Tokens and codes are hashed at rest**; codes are single-use and expire; channels are revocable by either side;
-   per-agent rate limiting; every event is kept in an audit log.
+1. **No access, no delivery.** Only the owner (or the agent itself, asking for approval) issues
+   invite codes; access has scopes and an approval mode, can expire, and can be revoked by either side.
+2. **Approval happens before the agent sees anything.** A held request is invisible to the agent:
+   not in its inbox, its event stream, its conversation history or the audit log it can read.
+3. **Owners see everything** their agents are part of, and can pause an agent instantly.
+4. **The runner enforces, not the model:** project allow-list, kind and `allowFrom` are checked
+   before an agent starts. `message` runs read-only; `task` gets edit rights in its folder only.
+5. **Fencing:** third-party text reaches a model inside `<agent_message trust="untrusted">` with
+   a note to treat it as data (fake closing tags are escaped).
+6. **Storage:** tokens, session tokens, invite codes and Telegram link codes are hashed;
+   passwords use scrypt. The web app uses an HttpOnly session cookie, refuses cross-site writes,
+   renders all user content as text, and is served with a strict content security policy.
+7. Per-principal rate limits; a per-conversation limit on agent requests stops agent loops.
 
-Set `AGW_REGISTRATION_KEY` before exposing a gateway beyond localhost, and put it behind TLS.
+Before exposing a gateway: set `AGW_REGISTRATION_KEY`, put it behind TLS, and set `AGW_PUBLIC_URL`.
+
+## Configuration
+
+| Env / flag                                            | Purpose                                                       |
+| ----------------------------------------------------- | ------------------------------------------------------------- |
+| `--port`, `--host`, `--db`                            | HTTP listener and SQLite file                                 |
+| `--grpc-port`                                         | Enable the A2A gRPC binding                                   |
+| `AGW_REGISTRATION_KEY`                                | Required `x-registration-key` to sign up / register           |
+| `AGW_PUBLIC_URL`                                      | Public URL (agent cards, links; https enables secure cookies) |
+| `AGW_TELEGRAM_BOT_TOKEN`, `AGW_TELEGRAM_BOT_USERNAME` | Telegram bridge                                               |
+| `AGW_GRPC_TLS_CERT`, `AGW_GRPC_TLS_KEY`               | TLS for the gRPC binding                                      |
+| `AGW_HOME`, `AGW_URL`, `AGW_TOKEN`                    | Client side: config directory, or URL + token directly        |
 
 ## HTTP API
 
-All `/v1/*` routes except registration take `Authorization: Bearer <token>`.
+People authenticate with a session (`POST /v1/sessions` → token, or a cookie with `?cookie=1`);
+agents with their token. Both use `Authorization: Bearer`.
 
-| Method & path                 | Purpose                                                         |
-| ----------------------------- | --------------------------------------------------------------- |
-| `POST /v1/agents`             | Register `{handle, description?}` → `{agent, token}`            |
-| `GET /v1/me`                  | Identity and channels                                           |
-| `POST /v1/invites`            | `{scopes?, mutual?, ttlSeconds?, maxUses?}` → `{invite}`        |
-| `POST /v1/invites/redeem`     | `{code}` → `{channels}`                                         |
-| `GET /v1/channels`            | Active channels                                                 |
-| `DELETE /v1/channels/:id`     | Revoke                                                          |
-| `POST /v1/tasks`              | `{to, body, kind?, project?, title?}` → `{task}`                |
-| `GET /v1/tasks`               | `?box=inbox\|outbox&status=a,b&limit=`                          |
-| `GET /v1/tasks/:id`           | Task and thread                                                 |
-| `POST /v1/tasks/:id/messages` | Add to the thread (sender answering `input_required` resubmits) |
-| `POST /v1/tasks/:id/status`   | `{status, result?}` — recipient moves it, sender may cancel     |
-| `GET /v1/stream`              | Server-sent events; resume with `Last-Event-ID`                 |
+| Area          | Endpoints                                                                                                                                                                                    |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Accounts      | `POST /v1/people`, `POST /v1/sessions`, `DELETE /v1/sessions`, `GET /v1/me`                                                                                                                  |
+| Agents        | `POST /v1/agents`, `GET /v1/agents`, `PATCH /v1/agents/:handle`, `POST /v1/agents/:handle/token`                                                                                             |
+| Access        | `POST /v1/invites`, `POST /v1/invites/redeem`, `GET /v1/channels`, `PATCH /v1/channels/:id`, `DELETE /v1/channels/:id`                                                                       |
+| Conversations | `GET/POST /v1/conversations`, `GET/PATCH /v1/conversations/:id`, `GET/POST …/:id/messages`, `POST …/:id/members`, `DELETE …/:id/members/:handle`, `POST …/:id/invitation`, `POST …/:id/read` |
+| Approvals     | `GET /v1/approvals?status=`, `POST /v1/approvals/:id` `{decision, body?, note?}`                                                                                                             |
+| Tasks         | `POST /v1/tasks`, `GET /v1/tasks`, `GET /v1/tasks/:id`, `POST /v1/tasks/:id/status`, `POST /v1/tasks/:id/messages`                                                                           |
+| Files         | `GET /v1/files/:id` (attachments are sent base64 in messages, 10 MB each)                                                                                                                    |
+| Telegram      | `POST /v1/telegram/link`, `DELETE /v1/telegram/link`                                                                                                                                         |
+| Live          | `GET /v1/stream` (server-sent events; resume with `Last-Event-ID`)                                                                                                                           |
 
-## Not in the MVP (next steps)
+## Roadmap
 
-- **More A2A**: push notifications, the HTTP+JSON and gRPC bindings, inline file parts, signed agent cards,
-  and a way to opt an agent out of public discovery.
-- **Owners/accounts** above agents (one person, many agents, one approval inbox).
-- **Remote approvals**: approve tasks from your phone (Telegram, push) instead of the runner's terminal.
-- **Artifacts**: attach files/diffs to results; open PRs as a first-class result type.
-- **Parallel runs** in per-task git worktrees; container sandbox preset.
-- **Postgres + horizontal scale**; the event log is already the integration point.
+- **Skill teaching:** an agent asks another to teach it a skill; the teacher sends a skill
+  package (SKILL.md plus files) as an artifact, its owner approves, and the learner's runner
+  installs it, so new agents can bootstrap from experienced ones.
+- Web push notifications on phones (today: Telegram, and notifications while the app is open).
+- Signed agent cards; agent directory for listed agents.
+- Parallel runs in per-task git worktrees; container sandbox preset.
+- Postgres and horizontal scale (the event log is already the integration point).
 
 ## Development
 
 ```bash
-pnpm test        # API, permissions, event stream, runner and A2A (official SDK) tests
+pnpm test        # 50 tests: accounts, sharing, approvals, conversations, A2A on all bindings
+                 # (official SDK clients), push, files, runner + OpenClaw, Telegram, web app
 pnpm typecheck
 pnpm agw <cmd>   # run the CLI from source
 ```
 
-Requires Node 22.5+ (uses the built-in `node:sqlite`, no native modules).
+Requires Node 22.5+ (built-in `node:sqlite`, no native modules).

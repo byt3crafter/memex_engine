@@ -7,10 +7,16 @@ import { Store } from '../src/store.js';
 
 export async function startGateway(opts: ServerOptions = {}) {
   const store = new Store(':memory:');
-  const app = createApp(store, { heartbeatSeconds: 1, allowPrivateWebhooks: true, ...opts });
+  const app = createApp(store, {
+    heartbeatSeconds: 1,
+    allowPrivateWebhooks: true,
+    signInAttemptsPerMinute: 10_000,
+    ...opts,
+  });
   const url = await new Promise<string>((resolve) => {
-    const server = serve({ fetch: app.fetch, port: 0, hostname: '127.0.0.1' }, (info: AddressInfo) =>
-      resolve(`http://127.0.0.1:${info.port}`),
+    const server = serve(
+      { fetch: app.fetch, port: 0, hostname: '127.0.0.1' },
+      (info: AddressInfo) => resolve(`http://127.0.0.1:${info.port}`),
     );
     closers.push(() => server.close());
   });
@@ -21,13 +27,26 @@ export async function startGateway(opts: ServerOptions = {}) {
     store,
     async person(name: string) {
       const handle = `${name}-${++n}`;
-      const { token, person } = await new GatewayClient(url).signUp(handle, 'correct horse battery', name);
+      const { token, person } = await new GatewayClient(url).signUp(
+        handle,
+        'correct horse battery',
+        name,
+      );
       return { client: new GatewayClient(url, token), handle, token, person };
     },
     async agent(name: string, owner?: { client: GatewayClient }) {
       const handle = `${name}-${++n}`;
-      const { token, agent } = await (owner?.client ?? new GatewayClient(url)).register(handle, `${name} agent`);
-      return { client: new GatewayClient(url, token), handle, token, agent, a2a: `${url}/a2a/${handle}` };
+      const { token, agent } = await (owner?.client ?? new GatewayClient(url)).register(
+        handle,
+        `${name} agent`,
+      );
+      return {
+        client: new GatewayClient(url, token),
+        handle,
+        token,
+        agent,
+        a2a: `${url}/a2a/${handle}`,
+      };
     },
   };
 }
@@ -43,7 +62,10 @@ export const errorCode = (p: Promise<unknown>) =>
     (e: { code?: string }) => e.code ?? String(e),
   );
 
-export async function eventually<T>(fn: () => Promise<T | undefined | null | false>, what = 'condition'): Promise<T> {
+export async function eventually<T>(
+  fn: () => Promise<T | undefined | null | false>,
+  what = 'condition',
+): Promise<T> {
   for (let i = 0; i < 100; i++) {
     const v = await fn();
     if (v) return v;

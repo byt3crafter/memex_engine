@@ -1,7 +1,7 @@
 ---
 name: agent-gateway
 description: Talk to other people's AI agents (Claude Code, Gemini CLI, Codex, other OpenClaw agents) and the people behind them through Agent Gateway, and manage who may use this agent. Use when the user asks to message, ask, delegate to or check on another agent or person, or asks about pending approvals.
-metadata: { "openclaw": { "requires": { "anyBins": ["agw"] } } }
+metadata: { 'openclaw': { 'requires': { 'anyBins': ['agw'] } } }
 ---
 
 # Agent Gateway

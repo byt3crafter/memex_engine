@@ -94,7 +94,14 @@ export type A2AStreamResponse =
   | { task: A2ATask }
   | { message: A2AMessage }
   | { statusUpdate: { taskId: string; contextId: string; status: A2ATaskStatus } }
-  | { artifactUpdate: { taskId: string; contextId: string; artifact: A2AArtifact; lastChunk?: boolean } };
+  | {
+      artifactUpdate: {
+        taskId: string;
+        contextId: string;
+        artifact: A2AArtifact;
+        lastChunk?: boolean;
+      };
+    };
 
 const STATE: Record<TaskStatus, A2ATaskState> = {
   pending_approval: 'TASK_STATE_SUBMITTED',
@@ -151,9 +158,17 @@ export class A2AFault extends Error {
 /** Gateway errors in A2A terms. */
 function translate(err: unknown): never {
   if (err instanceof GatewayError) {
-    if (err.status === 403) throw new A2AFault(A2A_ERRORS.invalidRequest, `Forbidden: ${err.message}`, { reason: err.code }, 403);
-    if (err.status === 404) throw new A2AFault(A2A_ERRORS.taskNotFound, 'Not found', { reason: err.code });
-    if (err.status === 429) throw new A2AFault(A2A_ERRORS.invalidRequest, err.message, { reason: err.code }, 429);
+    if (err.status === 403)
+      throw new A2AFault(
+        A2A_ERRORS.invalidRequest,
+        `Forbidden: ${err.message}`,
+        { reason: err.code },
+        403,
+      );
+    if (err.status === 404)
+      throw new A2AFault(A2A_ERRORS.taskNotFound, 'Not found', { reason: err.code });
+    if (err.status === 429)
+      throw new A2AFault(A2A_ERRORS.invalidRequest, err.message, { reason: err.code }, 429);
     if (err.status === 409 && err.code === 'task_closed') {
       throw new A2AFault(A2A_ERRORS.unsupportedOperation, 'Task is in a terminal state');
     }
@@ -195,15 +210,23 @@ export function toA2ATask(
     contextId: task.contextId,
     status: toA2AStatus(task),
     history,
-    metadata: { from: task.from, to: task.to, kind: task.kind, project: task.project, gatewayStatus: task.status },
+    metadata: {
+      from: task.from,
+      to: task.to,
+      kind: task.kind,
+      project: task.project,
+      gatewayStatus: task.status,
+    },
   };
   if (opts.includeArtifacts !== false) out.artifacts = resultArtifacts(task);
   return out;
 }
 
 function statusText(task: Task): string | null {
-  if (task.status === 'pending_approval') return `Waiting for the owner of ${task.to} to approve this request.`;
-  if (task.status === 'reviewing') return `${task.to} has answered; the reply is waiting for its owner’s review.`;
+  if (task.status === 'pending_approval')
+    return `Waiting for the owner of ${task.to} to approve this request.`;
+  if (task.status === 'reviewing')
+    return `${task.to} has answered; the reply is waiting for its owner’s review.`;
   return task.result && task.status !== 'completed' ? task.result : null;
 }
 
@@ -316,12 +339,17 @@ const listSchema = z.object({
   includeArtifacts: z.boolean().optional(),
 });
 
-const pushIdSchema = z.object({ tenant: z.string().optional(), taskId: z.string().min(1), id: z.string().min(1) });
+const pushIdSchema = z.object({
+  tenant: z.string().optional(),
+  taskId: z.string().min(1),
+  id: z.string().min(1),
+});
 const pushListSchema = z.object({ tenant: z.string().optional(), taskId: z.string().min(1) });
 
 function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   const out = schema.safeParse(value ?? {});
-  if (!out.success) throw new A2AFault(A2A_ERRORS.invalidParams, 'Invalid params', z.treeifyError(out.error));
+  if (!out.success)
+    throw new A2AFault(A2A_ERRORS.invalidParams, 'Invalid params', z.treeifyError(out.error));
   return out.data;
 }
 
@@ -349,7 +377,8 @@ export class A2AService {
 
   agent(handle: string | undefined): Principal {
     const target = handle ? this.gateway.store.principalByHandle(handle) : null;
-    if (!target || target.kind !== 'agent') throw new A2AFault(A2A_ERRORS.invalidRequest, 'Unknown agent', undefined, 404);
+    if (!target || target.kind !== 'agent')
+      throw new A2AFault(A2A_ERRORS.invalidRequest, 'Unknown agent', undefined, 404);
     return target;
   }
 
@@ -357,12 +386,25 @@ export class A2AService {
   canSeeCard(target: Principal, viewer: Principal | null): boolean {
     if (target.discoverable) return true;
     if (!viewer) return false;
-    return viewer.id === target.id || viewer.id === target.ownerId || Boolean(this.gateway.access(viewer, target));
+    return (
+      viewer.id === target.id ||
+      viewer.id === target.ownerId ||
+      Boolean(this.gateway.access(viewer, target))
+    );
   }
 
   card(target: Principal, baseUrl: string) {
-    const interfaces: { url: string; protocolBinding: string; protocolVersion: string; tenant?: string }[] = [
-      { url: `${baseUrl}/a2a/${target.handle}`, protocolBinding: 'JSONRPC', protocolVersion: A2A_PROTOCOL_VERSION },
+    const interfaces: {
+      url: string;
+      protocolBinding: string;
+      protocolVersion: string;
+      tenant?: string;
+    }[] = [
+      {
+        url: `${baseUrl}/a2a/${target.handle}`,
+        protocolBinding: 'JSONRPC',
+        protocolVersion: A2A_PROTOCOL_VERSION,
+      },
     ];
     if (this.bindings.rest) {
       interfaces.push({
@@ -436,11 +478,18 @@ export class A2AService {
 
   private view(taskId: string, historyLength?: number, includeArtifacts = true): A2ATask {
     const task = this.gateway.store.getTask(taskId)!;
-    return toA2ATask(task, this.gateway.store.taskMessages(taskId), { historyLength, includeArtifacts });
+    return toA2ATask(task, this.gateway.store.taskMessages(taskId), {
+      historyLength,
+      includeArtifacts,
+    });
   }
 
   /** Start a task (or continue one via `message.taskId`), registering any push config. */
-  begin(caller: Principal, target: Principal, raw: unknown): { taskId: string; historyLength?: number } {
+  begin(
+    caller: Principal,
+    target: Principal,
+    raw: unknown,
+  ): { taskId: string; historyLength?: number } {
     const p = parse(sendSchema, raw);
     const { message } = p;
     const { text, attachments } = partsToInput(message.parts);
@@ -458,7 +507,10 @@ export class A2AService {
         const meta = { ...p.metadata, ...message.metadata };
         const kind = (meta.kind ?? 'message') as Scope;
         if (!SCOPES.includes(kind)) {
-          throw new A2AFault(A2A_ERRORS.invalidParams, `metadata.kind must be one of: ${SCOPES.join(', ')}`);
+          throw new A2AFault(
+            A2A_ERRORS.invalidParams,
+            `metadata.kind must be one of: ${SCOPES.join(', ')}`,
+          );
         }
         const str = (v: unknown) => (typeof v === 'string' && v ? v.slice(0, 200) : null);
         const input = {
@@ -481,14 +533,21 @@ export class A2AService {
     if (push) this.createPush(caller, target, { ...push, taskId: task!.id });
     return {
       taskId: task!.id,
-      ...(p.configuration?.historyLength !== undefined ? { historyLength: p.configuration.historyLength } : {}),
+      ...(p.configuration?.historyLength !== undefined
+        ? { historyLength: p.configuration.historyLength }
+        : {}),
     };
   }
 
-  async send(caller: Principal, target: Principal, raw: unknown, signal?: AbortSignal): Promise<{ task: A2ATask }> {
+  async send(
+    caller: Principal,
+    target: Principal,
+    raw: unknown,
+    signal?: AbortSignal,
+  ): Promise<{ task: A2ATask }> {
     const { taskId, historyLength } = this.begin(caller, target, raw);
-    const returnImmediately = (raw as { configuration?: { returnImmediately?: boolean } })?.configuration
-      ?.returnImmediately;
+    const returnImmediately = (raw as { configuration?: { returnImmediately?: boolean } })
+      ?.configuration?.returnImmediately;
     if (!returnImmediately) {
       await this.gateway.hub.waitForTask(caller.id, taskId, settled, {
         timeoutMs: this.opts.blockingTimeoutMs,
@@ -507,10 +566,12 @@ export class A2AService {
   listTasks(caller: Principal, target: Principal, raw: unknown) {
     const p = parse(listSchema, raw);
     const status = p.status ? FROM_STATE[p.status as A2ATaskState] : undefined;
-    if (p.status && !status) throw new A2AFault(A2A_ERRORS.invalidParams, `Unknown status ${p.status}`);
+    if (p.status && !status)
+      throw new A2AFault(A2A_ERRORS.invalidParams, `Unknown status ${p.status}`);
     const pageSize = p.pageSize ?? 50;
     const offset = Number(p.pageToken || 0);
-    if (!Number.isInteger(offset) || offset < 0) throw new A2AFault(A2A_ERRORS.invalidParams, 'Invalid pageToken');
+    if (!Number.isInteger(offset) || offset < 0)
+      throw new A2AFault(A2A_ERRORS.invalidParams, 'Invalid pageToken');
     const { tasks, total } = this.gateway.store.listTasksBetween(
       caller.id,
       target.id,
@@ -584,7 +645,8 @@ export class A2AService {
           if (t.status === lastStatus && t.status !== 'input_required') continue;
           lastStatus = t.status;
           const artifact = resultArtifacts(t)[0];
-          if (artifact) yield { artifactUpdate: { taskId, contextId: t.contextId, artifact, lastChunk: true } };
+          if (artifact)
+            yield { artifactUpdate: { taskId, contextId: t.contextId, artifact, lastChunk: true } };
           yield { statusUpdate: { taskId, contextId: t.contextId, status: toA2AStatus(t) } };
           done = settled(t);
         }
@@ -632,14 +694,18 @@ export class A2AService {
     const p = parse(pushIdSchema, raw);
     this.ownTask(caller, target, p.taskId);
     const row = this.gateway.store.pushConfig(p.id);
-    if (!row || row.taskId !== p.taskId) throw new A2AFault(A2A_ERRORS.taskNotFound, 'Push config not found');
+    if (!row || row.taskId !== p.taskId)
+      throw new A2AFault(A2A_ERRORS.taskNotFound, 'Push config not found');
     return this.pushView(row);
   }
 
   listPush(caller: Principal, target: Principal, raw: unknown) {
     const p = parse(pushListSchema, raw);
     this.ownTask(caller, target, p.taskId);
-    return { configs: this.gateway.store.pushConfigsForTask(p.taskId).map((r) => this.pushView(r)), nextPageToken: '' };
+    return {
+      configs: this.gateway.store.pushConfigsForTask(p.taskId).map((r) => this.pushView(r)),
+      nextPageToken: '',
+    };
   }
 
   deletePush(caller: Principal, target: Principal, raw: unknown): void {
@@ -649,7 +715,13 @@ export class A2AService {
     if (row?.taskId === p.taskId) this.gateway.store.deletePushConfig(p.id);
   }
 
-  private pushView(r: { id: string; taskId: string; url: string; token: string | null; authScheme: string | null }): A2APushConfig {
+  private pushView(r: {
+    id: string;
+    taskId: string;
+    url: string;
+    token: string | null;
+    authScheme: string | null;
+  }): A2APushConfig {
     return {
       id: r.id,
       taskId: r.taskId,
@@ -674,11 +746,19 @@ export class A2AService {
       Promise.all(
         configs.map(async (cfg) => {
           try {
-            if (!this.opts.allowPrivateWebhooks && (await isPrivateHost(new URL(cfg.url).hostname))) return;
+            if (!this.opts.allowPrivateWebhooks && (await isPrivateHost(new URL(cfg.url).hostname)))
+              return;
             const headers: Record<string, string> = { 'content-type': A2A_CONTENT_TYPE };
-            if (cfg.authScheme && cfg.authCredentials) headers.authorization = `${cfg.authScheme} ${cfg.authCredentials}`;
+            if (cfg.authScheme && cfg.authCredentials)
+              headers.authorization = `${cfg.authScheme} ${cfg.authCredentials}`;
             if (cfg.token) headers['x-a2a-notification-token'] = cfg.token;
-            await fetch(cfg.url, { method: 'POST', headers, body, signal: AbortSignal.timeout(5000), redirect: 'error' });
+            await fetch(cfg.url, {
+              method: 'POST',
+              headers,
+              body,
+              signal: AbortSignal.timeout(5000),
+              redirect: 'error',
+            });
           } catch {
             // Best effort: the client can always GetTask.
           }
@@ -694,10 +774,14 @@ export class A2AService {
 /** Blocks webhooks into the gateway's own network unless explicitly allowed. */
 async function isPrivateHost(hostname: string): Promise<boolean> {
   const host = hostname.replace(/^\[|\]$/g, '');
-  const addresses = isIP(host) ? [host] : (await lookup(host, { all: true }).catch(() => [])).map((a) => a.address);
+  const addresses = isIP(host)
+    ? [host]
+    : (await lookup(host, { all: true }).catch(() => [])).map((a) => a.address);
   if (!addresses.length) return true;
   return addresses.some((ip) =>
-    /^(127\.|10\.|192\.168\.|169\.254\.|0\.|172\.(1[6-9]|2\d|3[01])\.|::1$|fc|fd|fe80:|::ffff:(127|10|192\.168)\.)/i.test(ip),
+    /^(127\.|10\.|192\.168\.|169\.254\.|0\.|172\.(1[6-9]|2\d|3[01])\.|::1$|fc|fd|fe80:|::ffff:(127|10|192\.168)\.)/i.test(
+      ip,
+    ),
   );
 }
 
@@ -711,7 +795,12 @@ const rpcError = (id: RpcId, code: number, message: string, data?: unknown) => (
   error: { code, message, ...(data === undefined ? {} : { data }) },
 });
 
-export function mountA2A(app: Hono<any>, gateway: Gateway, limiter: RateLimiter, opts: A2AOptions): A2AService {
+export function mountA2A(
+  app: Hono<any>,
+  gateway: Gateway,
+  limiter: RateLimiter,
+  opts: A2AOptions,
+): A2AService {
   const service = new A2AService(gateway, opts);
   const baseUrl = (c: Context) => (opts.publicUrl ?? new URL(c.req.url).origin).replace(/\/$/, '');
   const bearer = (c: Context) => {
@@ -758,9 +847,13 @@ export function mountA2A(app: Hono<any>, gateway: Gateway, limiter: RateLimiter,
     const caller = gateway.authenticate(bearer(c));
     if (!caller) {
       c.header('WWW-Authenticate', 'Bearer');
-      return c.json(rpcError(id, A2A_ERRORS.invalidRequest, 'Unauthorized: gateway bearer token required'), 401);
+      return c.json(
+        rpcError(id, A2A_ERRORS.invalidRequest, 'Unauthorized: gateway bearer token required'),
+        401,
+      );
     }
-    if (!limiter.allow(caller.id)) return c.json(rpcError(id, A2A_ERRORS.invalidRequest, 'Rate limited'), 429);
+    if (!limiter.allow(caller.id))
+      return c.json(rpcError(id, A2A_ERRORS.invalidRequest, 'Rate limited'), 429);
 
     try {
       const target = service.agent(c.req.param('handle'));
@@ -797,7 +890,8 @@ export function mountA2A(app: Hono<any>, gateway: Gateway, limiter: RateLimiter,
           throw new A2AFault(A2A_ERRORS.methodNotFound, `Method not found: ${req.method}`);
       }
     } catch (err) {
-      if (err instanceof A2AFault) return c.json(rpcError(id, err.code, err.message, err.data), err.httpStatus);
+      if (err instanceof A2AFault)
+        return c.json(rpcError(id, err.code, err.message, err.data), err.httpStatus);
       if (err instanceof GatewayError) {
         try {
           translate(err);

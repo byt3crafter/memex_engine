@@ -19,6 +19,7 @@ beforeAll(async () => {
   const app = createApp(new Store(':memory:'), {
     heartbeatSeconds: 1,
     a2aBlockingTimeoutSeconds: 10,
+    signInAttemptsPerMinute: 10_000,
   });
   await new Promise<void>((resolve) => {
     const server = serve(
@@ -367,7 +368,12 @@ describe('A2A permissions and errors', () => {
       }),
     ).toBe(-32602);
     expect(await code('CreateTaskPushNotificationConfig', { url: 'https://x' })).toBe(-32602);
-    expect(await code('CreateTaskPushNotificationConfig', { url: 'https://x.example', taskId: 'tsk_nope' })).toBe(-32001);
+    expect(
+      await code('CreateTaskPushNotificationConfig', {
+        url: 'https://x.example',
+        taskId: 'tsk_nope',
+      }),
+    ).toBe(-32001);
     expect(await code('GetExtendedAgentCard', {})).toBe(-32007);
     expect(await code('GetTask', { id: 'x' }, { 'A2A-Version': '0.3' })).toBe(-32009);
 

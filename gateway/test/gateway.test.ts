@@ -15,7 +15,7 @@ let close: () => void;
 
 beforeAll(async () => {
   const store = new Store(':memory:');
-  const app = createApp(store, { heartbeatSeconds: 1 });
+  const app = createApp(store, { heartbeatSeconds: 1, signInAttemptsPerMinute: 10_000 });
   await new Promise<void>((resolve) => {
     const server = serve(
       { fetch: app.fetch, port: 0, hostname: '127.0.0.1' },

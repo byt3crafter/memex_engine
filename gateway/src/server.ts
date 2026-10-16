@@ -26,6 +26,8 @@ export interface ServerOptions {
   allowPrivateWebhooks?: boolean;
   /** Telegram bot username, shown when linking. */
   telegramBot?: string | undefined;
+  /** Sign-up / sign-in attempts per client address (and per handle) per minute. Default 20. */
+  signInAttemptsPerMinute?: number;
   /** Secure cookies (set when served over HTTPS). */
   secureCookies?: boolean;
 }
@@ -119,6 +121,15 @@ export function createApp(store: Store, opts: ServerOptions = {}) {
   const gateway = new Gateway(store);
   const app = new Hono<Env>();
   const limiter = new RateLimiter(opts.rateLimitPerMinute ?? 600);
+  // Unauthenticated endpoints: per client address, and per handle for sign-in attempts.
+  const openLimiter = new RateLimiter(opts.signInAttemptsPerMinute ?? 20);
+  const clientAddress = (c: Context) =>
+    (c.env as { incoming?: { socket?: { remoteAddress?: string } } } | undefined)?.incoming?.socket
+      ?.remoteAddress ?? 'unknown';
+  const throttle = (key: string) => {
+    if (!openLimiter.allow(key))
+      throw new GatewayError(429, 'rate_limited', 'too many attempts; wait a minute');
+  };
 
   app.onError((err, c) => {
     if (err instanceof GatewayError) {
@@ -178,6 +189,7 @@ export function createApp(store: Store, opts: ServerOptions = {}) {
   // ---- sign-up / sign-in (no auth) ----
 
   app.post('/v1/people', async (c) => {
+    throttle(`ip:${clientAddress(c)}`);
     requireRegistrationKey(c);
     const out = gateway.registerPerson(await body(c, schemas.person));
     if (c.req.query('cookie')) startWebSession(c, out.token, out.expiresAt);
@@ -186,6 +198,8 @@ export function createApp(store: Store, opts: ServerOptions = {}) {
 
   app.post('/v1/sessions', async (c) => {
     const b = await body(c, schemas.login);
+    throttle(`ip:${clientAddress(c)}`);
+    throttle(`login:${b.handle.toLowerCase()}`);
     const out = gateway.login(b.handle, b.password);
     if (c.req.query('cookie')) startWebSession(c, out.token, out.expiresAt);
     return c.json(out, 201);
@@ -194,6 +208,7 @@ export function createApp(store: Store, opts: ServerOptions = {}) {
   // Unowned agents register themselves; people create owned agents (authenticated, below).
   app.post('/v1/agents', async (c, next) => {
     if (bearer(c) || getCookie(c, SESSION_COOKIE)) return next();
+    throttle(`ip:${clientAddress(c)}`);
     requireRegistrationKey(c);
     return c.json(gateway.registerAgent(await body(c, schemas.agent)), 201);
   });
@@ -202,7 +217,7 @@ export function createApp(store: Store, opts: ServerOptions = {}) {
 
   app.use('/v1/*', async (c, next) => {
     const cookie = getCookie(c, SESSION_COOKIE);
-    const me = gateway.authenticate(bearer(c) ?? cookie ?? c.req.query('access_token'));
+    const me = gateway.authenticate(bearer(c) ?? cookie);
     if (!me) throw new GatewayError(401, 'unauthorized');
     // Cookie-authenticated writes must come from our own pages: browsers won't send a
     // custom header cross-site without CORS, which this server never grants.
@@ -375,7 +390,9 @@ export function createApp(store: Store, opts: ServerOptions = {}) {
   app.get('/v1/approvals', (c) => {
     const status = c.req.query('status');
     const filter =
-      status === 'all' ? null : ((status as 'pending' | 'approved' | 'rejected' | undefined) ?? 'pending');
+      status === 'all'
+        ? null
+        : ((status as 'pending' | 'approved' | 'rejected' | undefined) ?? 'pending');
     return c.json({ approvals: gateway.listApprovals(c.get('me'), filter) });
   });
 

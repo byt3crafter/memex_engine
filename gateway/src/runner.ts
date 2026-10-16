@@ -50,7 +50,12 @@ export interface RunnerConfig {
   defaultProject?: string;
 }
 
-const echo = ['node', '-e', 'console.log("echo: " + process.argv[1].length + " chars received")', '{prompt}'];
+const echo = [
+  'node',
+  '-e',
+  'console.log("echo: " + process.argv[1].length + " chars received")',
+  '{prompt}',
+];
 
 /**
  * Starting points. Messages run read-only; tasks get each CLI's "may edit files in this folder"
@@ -75,8 +80,24 @@ export const PRESETS: Record<string, AgentCommand> = {
    * agent remembers the thread. Add `"--agent", "<id>"` to pick a specific OpenClaw agent.
    */
   openclaw: {
-    message: ['openclaw', 'agent', '--session-id', 'agw-{conversation}', '--message-file', '{promptFile}', '--json'],
-    task: ['openclaw', 'agent', '--session-id', 'agw-{conversation}', '--message-file', '{promptFile}', '--json'],
+    message: [
+      'openclaw',
+      'agent',
+      '--session-id',
+      'agw-{conversation}',
+      '--message-file',
+      '{promptFile}',
+      '--json',
+    ],
+    task: [
+      'openclaw',
+      'agent',
+      '--session-id',
+      'agw-{conversation}',
+      '--message-file',
+      '{promptFile}',
+      '--json',
+    ],
     output: 'openclaw-json',
   },
   /** For trying the gateway without an AI CLI installed. */
@@ -85,13 +106,16 @@ export const PRESETS: Record<string, AgentCommand> = {
 
 export function loadRunnerConfig(path: string): RunnerConfig {
   const cfg = JSON.parse(readFileSync(path, 'utf8')) as RunnerConfig;
-  if (!cfg.projects || !Object.keys(cfg.projects).length) throw new Error(`${path}: no projects configured`);
+  if (!cfg.projects || !Object.keys(cfg.projects).length)
+    throw new Error(`${path}: no projects configured`);
   return cfg;
 }
 
 function describeSender(task: Task, context: Message[]): string {
   const seen = context.find((m) => m.author === task.from);
-  return seen?.authorKind === 'human' ? `a person, "${task.from}"` : `another AI agent, "${task.from}"`;
+  return seen?.authorKind === 'human'
+    ? `a person, "${task.from}"`
+    : `another AI agent, "${task.from}"`;
 }
 
 export function buildPrompt(
@@ -231,7 +255,8 @@ export class Runner {
       await this.client.setStatus(task.id, 'rejected', why);
     };
     if (!projectName || !project) return reject(`unknown project "${task.project ?? ''}"`);
-    if (!(project.allow ?? ['message']).includes(task.kind)) return reject(`project does not accept ${task.kind}s`);
+    if (!(project.allow ?? ['message']).includes(task.kind))
+      return reject(`project does not accept ${task.kind}s`);
     if (project.allowFrom && !project.allowFrom.includes(task.from)) {
       return reject('sender not allowed for this project');
     }
@@ -247,7 +272,9 @@ export class Runner {
     }
 
     await this.client.setStatus(task.id, 'working');
-    this.log(`running ${task.id} (${task.kind} from ${task.from}) in ${project.path} with ${project.agent}`);
+    this.log(
+      `running ${task.id} (${task.kind} from ${task.from}) in ${project.path} with ${project.agent}`,
+    );
 
     const work = join(tmpdir(), `agw-${task.id}`);
     mkdirSync(work, { recursive: true });
@@ -263,13 +290,19 @@ export class Runner {
         task: task.id,
         project: projectName,
       };
-      const argv = command.map((a) => a.replace(/\{(prompt|promptFile|conversation|task|project)\}/g, (_, k) => vars[k]!));
+      const argv = command.map((a) =>
+        a.replace(/\{(prompt|promptFile|conversation|task|project)\}/g, (_, k) => vars[k]!),
+      );
       const out = await execute(argv, project.path, (project.timeoutSeconds ?? 900) * 1000);
 
       if (out.code === 0) {
         const result = parseOutput(out.stdout, agent.output) || '(no output)';
         if (result.startsWith('NEEDS_INPUT:')) {
-          await this.client.setStatus(task.id, 'input_required', result.slice('NEEDS_INPUT:'.length).trim());
+          await this.client.setStatus(
+            task.id,
+            'input_required',
+            result.slice('NEEDS_INPUT:'.length).trim(),
+          );
           this.log(`${task.id} needs input from ${task.from}`);
         } else {
           await this.client.setStatus(task.id, 'completed', result);
@@ -318,9 +351,13 @@ export function parseOutput(stdout: string, format: AgentCommand['output']): str
       error?: { message?: string };
     };
     const payloads = json.payloads ?? json.result?.payloads ?? [];
-    const text = payloads.map((p) => p.text ?? '').filter(Boolean).join('\n\n');
+    const text = payloads
+      .map((p) => p.text ?? '')
+      .filter(Boolean)
+      .join('\n\n');
     if (text) return text.trim();
-    if (json.ok === false) return `NEEDS_INPUT: OpenClaw reported an error: ${json.error?.message ?? 'unknown'}`;
+    if (json.ok === false)
+      return `NEEDS_INPUT: OpenClaw reported an error: ${json.error?.message ?? 'unknown'}`;
     return '';
   } catch {
     return stdout.trim();
@@ -340,7 +377,8 @@ function execute(
     let stderr = '';
     let timedOut = false;
     const child = spawn(bin!, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
-    const cap = (cur: string, chunk: Buffer) => (cur.length < MAX_OUTPUT ? cur + chunk.toString() : cur);
+    const cap = (cur: string, chunk: Buffer) =>
+      cur.length < MAX_OUTPUT ? cur + chunk.toString() : cur;
     child.stdout.on('data', (c: Buffer) => (stdout = cap(stdout, c)));
     child.stderr.on('data', (c: Buffer) => (stderr = cap(stderr, c)));
     const timer = setTimeout(() => {

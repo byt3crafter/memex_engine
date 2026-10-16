@@ -45,7 +45,12 @@ export class GatewayError extends Error {
   }
 }
 
-const fail = (status: GatewayError['status'], code: string, message?: string, detail?: unknown): never => {
+const fail = (
+  status: GatewayError['status'],
+  code: string,
+  message?: string,
+  detail?: unknown,
+): never => {
   throw new GatewayError(status, code, message, detail);
 };
 
@@ -133,7 +138,8 @@ export class Gateway {
   }
 
   private checkHandle(handle: string): void {
-    if (!HANDLE.test(handle)) fail(400, 'invalid_handle', 'handle must be 2-63 chars of a-z, 0-9, . _ -');
+    if (!HANDLE.test(handle))
+      fail(400, 'invalid_handle', 'handle must be 2-63 chars of a-z, 0-9, . _ -');
     if (this.store.principalByHandle(handle)) fail(409, 'handle_taken');
   }
 
@@ -153,7 +159,8 @@ export class Gateway {
   }
 
   registerPerson(input: { handle: string; password: string; displayName?: string | null }) {
-    if (input.password.length < 8) fail(400, 'weak_password', 'password must be at least 8 characters');
+    if (input.password.length < 8)
+      fail(400, 'weak_password', 'password must be at least 8 characters');
     this.checkHandle(input.handle);
     const person = this.store.createPrincipal({
       kind: 'human',
@@ -209,12 +216,20 @@ export class Gateway {
   ): Principal {
     const agent = this.ownedAgent(actor, handle, true);
     // An agent may describe itself; only its owner may pause it or change its visibility.
-    if (agent.id === actor.id && (patch.paused !== undefined || (patch.discoverable !== undefined && agent.ownerId))) {
+    if (
+      agent.id === actor.id &&
+      (patch.paused !== undefined || (patch.discoverable !== undefined && agent.ownerId))
+    ) {
       fail(403, 'not_owner');
     }
     const updated = this.store.tx(() => {
       const p = this.store.updatePrincipal(agent.id, patch);
-      this.store.emit([agent.id, ...(agent.ownerId ? [agent.ownerId] : [])], 'agent.updated', null, p);
+      this.store.emit(
+        [agent.id, ...(agent.ownerId ? [agent.ownerId] : [])],
+        'agent.updated',
+        null,
+        p,
+      );
       return p;
     });
     // Unpausing doesn't release held requests; the owner approves them one by one.
@@ -307,21 +322,38 @@ export class Gateway {
       if (!inv) return fail(404, 'invalid_code');
       if (inv.expiresAt < now()) fail(409, 'code_expired');
       if (inv.uses >= inv.maxUses) fail(409, 'code_used');
-      if (inv.targetId === actor.id || inv.issuerId === actor.id) fail(409, 'cannot_redeem_own_code');
+      if (inv.targetId === actor.id || inv.issuerId === actor.id)
+        fail(409, 'cannot_redeem_own_code');
       this.store.consumeInvite(code);
       const expiresAt = inv.grantTtlSeconds
         ? new Date(Date.now() + inv.grantTtlSeconds * 1000).toISOString()
         : null;
-      const base = { scopes: inv.scopes, includeAgents: inv.includeAgents, expiresAt, grantedBy: inv.issuerId };
+      const base = {
+        scopes: inv.scopes,
+        includeAgents: inv.includeAgents,
+        expiresAt,
+        grantedBy: inv.issuerId,
+      };
       const channels = [
-        this.store.upsertChannel({ ...base, senderId: actor.id, recipientId: inv.targetId, approval: inv.approval }),
+        this.store.upsertChannel({
+          ...base,
+          senderId: actor.id,
+          recipientId: inv.targetId,
+          approval: inv.approval,
+        }),
       ];
       if (inv.mutual && actor.kind === 'agent') {
         channels.push(
-          this.store.upsertChannel({ ...base, senderId: inv.targetId, recipientId: actor.id, approval: 'auto' }),
+          this.store.upsertChannel({
+            ...base,
+            senderId: inv.targetId,
+            recipientId: actor.id,
+            approval: 'auto',
+          }),
         );
       }
-      for (const ch of channels) this.store.emit(this.channelParties(ch), 'channel.created', null, publicChannel(ch));
+      for (const ch of channels)
+        this.store.emit(this.channelParties(ch), 'channel.created', null, publicChannel(ch));
       return { channels: channels.map(publicChannel) };
     });
   }
@@ -338,7 +370,10 @@ export class Gateway {
 
   /** Channels `actor` is part of, plus (for people) those of the agents they own. */
   channelsFor(actor: Principal): Channel[] {
-    const ids = [actor.id, ...(actor.kind === 'human' ? this.store.agentsOwnedBy(actor.id).map((a) => a.id) : [])];
+    const ids = [
+      actor.id,
+      ...(actor.kind === 'human' ? this.store.agentsOwnedBy(actor.id).map((a) => a.id) : []),
+    ];
     return this.store.channelsInvolving(ids).map(publicChannel);
   }
 
@@ -346,7 +381,12 @@ export class Gateway {
   updateChannel(
     actor: Principal,
     id: string,
-    patch: { scopes?: Scope[]; approval?: ApprovalMode; includeAgents?: boolean; expiresAt?: string | null },
+    patch: {
+      scopes?: Scope[];
+      approval?: ApprovalMode;
+      includeAgents?: boolean;
+      expiresAt?: string | null;
+    },
   ): Channel {
     const ch = this.store.channelById(id);
     if (!ch || ch.revokedAt) return fail(404, 'not_found');
@@ -355,7 +395,12 @@ export class Gateway {
     if (!controls) fail(403, 'not_owner');
     return this.store.tx(() => {
       const updated = this.store.updateChannel(id, patch);
-      this.store.emit(this.channelParties(updated), 'channel.updated', null, publicChannel(updated));
+      this.store.emit(
+        this.channelParties(updated),
+        'channel.updated',
+        null,
+        publicChannel(updated),
+      );
       return publicChannel(updated);
     });
   }
@@ -366,7 +411,12 @@ export class Gateway {
     if (!ch || !this.channelParties(ch).includes(actor.id)) return fail(404, 'not_found');
     return this.store.tx(() => {
       const revoked = this.store.revokeChannel(id);
-      this.store.emit(this.channelParties(revoked), 'channel.revoked', null, publicChannel(revoked));
+      this.store.emit(
+        this.channelParties(revoked),
+        'channel.revoked',
+        null,
+        publicChannel(revoked),
+      );
       return publicChannel(revoked);
     });
   }
@@ -382,14 +432,22 @@ export class Gateway {
   }
 
   /** Adds an agent with its owner as overseer, so owners always see their agents' conversations. */
-  private addAgentMember(conversationId: string, agent: Principal, addedBy: string, role: 'admin' | 'member' = 'member') {
+  private addAgentMember(
+    conversationId: string,
+    agent: Principal,
+    addedBy: string,
+    role: 'admin' | 'member' = 'member',
+  ) {
     this.store.setMember(conversationId, agent.id, role, 'joined', addedBy);
     if (agent.ownerId && !this.store.member(conversationId, agent.ownerId)) {
       this.store.setMember(conversationId, agent.ownerId, 'overseer', 'joined', addedBy);
     }
   }
 
-  createConversation(actor: Principal, input: { title?: string | null; members?: string[] }): Conversation {
+  createConversation(
+    actor: Principal,
+    input: { title?: string | null; members?: string[] },
+  ): Conversation {
     return this.store.tx(() => {
       const id = this.store.createConversation({ title: input.title ?? null, createdBy: actor.id });
       if (actor.kind === 'agent') this.addAgentMember(id, actor, actor.id, 'admin');
@@ -406,7 +464,11 @@ export class Gateway {
     const existing = this.store.conversationByDirectKey(key);
     if (existing) return existing;
     return this.store.tx(() => {
-      const id = this.store.createConversation({ title: null, createdBy: actor.id, directKey: key });
+      const id = this.store.createConversation({
+        title: null,
+        createdBy: actor.id,
+        directKey: key,
+      });
       if (actor.kind === 'agent') this.addAgentMember(id, actor, actor.id, 'admin');
       else this.store.setMember(id, actor.id, 'admin', 'joined', actor.id);
       this.addAgentMember(id, agent, actor.id);
@@ -432,13 +494,22 @@ export class Gateway {
     if (target.kind === 'agent') {
       // Bringing an agent in needs access to it (or owning it).
       if (target.id !== actor.id && !this.access(actor, target)) {
-        fail(403, 'no_access', `you don’t have access to ${handle}; ask its owner for an invite code`);
+        fail(
+          403,
+          'no_access',
+          `you don’t have access to ${handle}; ask its owner for an invite code`,
+        );
       }
       this.addAgentMember(conversationId, target, actor.id);
     } else {
       // People choose whether to join.
       this.store.setMember(conversationId, target.id, 'member', 'invited', actor.id);
-      this.store.emit([target.id], 'conversation.invited', null, this.store.getConversation(conversationId));
+      this.store.emit(
+        [target.id],
+        'conversation.invited',
+        null,
+        this.store.getConversation(conversationId),
+      );
     }
     this.systemMessage(conversationId, actor.id, `@${actor.handle} added @${target.handle}`);
   }
@@ -469,17 +540,23 @@ export class Gateway {
     const ownsAgentHere = this.store
       .members(conversationId)
       .some((m) => this.store.principalById(m.principalId)?.ownerId === target.id);
-    if (ownsAgentHere) fail(409, 'remove_agents_first', 'remove your agents from the conversation first');
+    if (ownsAgentHere)
+      fail(409, 'remove_agents_first', 'remove your agents from the conversation first');
     this.store.tx(() => {
       this.store.removeMember(conversationId, target.id);
       this.systemMessage(
         conversationId,
         actor.id,
-        target.id === actor.id ? `@${actor.handle} left` : `@${actor.handle} removed @${target.handle}`,
+        target.id === actor.id
+          ? `@${actor.handle} left`
+          : `@${actor.handle} removed @${target.handle}`,
       );
-      this.notifyConversation(conversationId, 'conversation.updated', this.store.getConversation(conversationId), [
-        target.id,
-      ]);
+      this.notifyConversation(
+        conversationId,
+        'conversation.updated',
+        this.store.getConversation(conversationId),
+        [target.id],
+      );
     });
   }
 
@@ -513,7 +590,11 @@ export class Gateway {
     return this.store.getConversation(conversationId)!;
   }
 
-  listMessages(actor: Principal, conversationId: string, opts: { before?: number; after?: number; limit?: number }) {
+  listMessages(
+    actor: Principal,
+    conversationId: string,
+    opts: { before?: number; after?: number; limit?: number },
+  ) {
     this.joinedMember(actor, conversationId);
     return this.visibleMessages(actor, conversationId, {
       ...(opts.before ? { beforeSeq: opts.before } : {}),
@@ -532,7 +613,8 @@ export class Gateway {
       (d) =>
         d.to === viewer.handle &&
         (d.status === 'pending_approval' ||
-          (d.status === 'rejected' && this.store.latestApproval(d.taskId, 'request')?.status === 'rejected')),
+          (d.status === 'rejected' &&
+            this.store.latestApproval(d.taskId, 'request')?.status === 'rejected')),
     );
   }
 
@@ -552,7 +634,8 @@ export class Gateway {
 
   attachment(actor: Principal, id: string) {
     const file = this.store.attachment(id);
-    if (!file || this.store.member(file.conversationId, actor.id)?.state !== 'joined') return fail(404, 'not_found');
+    if (!file || this.store.member(file.conversationId, actor.id)?.state !== 'joined')
+      return fail(404, 'not_found');
     return file;
   }
 
@@ -595,11 +678,17 @@ export class Gateway {
     const plans = addressed.map((agent) => {
       const acc = this.access(actor, agent);
       if (acc && !acc.scopes.includes(kind)) {
-        fail(403, 'scope_not_allowed', `your access to ${agent.handle} only allows: ${acc.scopes.join(', ')}`, {
-          allowed: acc.scopes,
-        });
+        fail(
+          403,
+          'scope_not_allowed',
+          `your access to ${agent.handle} only allows: ${acc.scopes.join(', ')}`,
+          {
+            allowed: acc.scopes,
+          },
+        );
       }
-      if (!acc && !agent.ownerId) fail(403, 'no_access', `you don’t have access to ${agent.handle}`);
+      if (!acc && !agent.ownerId)
+        fail(403, 'no_access', `you don’t have access to ${agent.handle}`);
       return { agent, acc };
     });
     const files = (input.attachments ?? []).map((a) => this.decodeAttachment(a));
@@ -615,7 +704,13 @@ export class Gateway {
         replyTo: input.replyTo ?? null,
         taskId: null,
       });
-      for (const f of files) this.store.insertAttachment({ ...f, conversationId, messageId: msg.id, createdBy: actor.id });
+      for (const f of files)
+        this.store.insertAttachment({
+          ...f,
+          conversationId,
+          messageId: msg.id,
+          createdBy: actor.id,
+        });
       const full = this.store.getMessage(msg.id)!;
       for (const { agent, acc } of plans) {
         this.deliver(actor, conversationId, full, agent, acc, {
@@ -704,7 +799,12 @@ export class Gateway {
         body: text,
         proposedStatus: null,
       });
-      this.store.emit([agent.ownerId!], 'approval.requested', task.id, this.publicApproval(approval));
+      this.store.emit(
+        [agent.ownerId!],
+        'approval.requested',
+        task.id,
+        this.publicApproval(approval),
+      );
     }
     this.emitTask(task, waiting ? 'task.updated' : 'task.created');
     return task;
@@ -714,16 +814,28 @@ export class Gateway {
   sendDirect(
     actor: Principal,
     toHandle: string,
-    input: { kind: Scope; project: string | null; title: string | null; body: string; attachments?: AttachmentInput[] },
+    input: {
+      kind: Scope;
+      project: string | null;
+      title: string | null;
+      body: string;
+      attachments?: AttachmentInput[];
+    },
   ): Task {
     const agent = this.store.principalByHandle(toHandle);
     // Same error for "no such agent" and "no access".
     const acc = agent ? this.access(actor, agent) : null;
-    if (!agent || !acc) return fail(403, 'no_channel', 'redeem an invite code for this agent first');
+    if (!agent || !acc)
+      return fail(403, 'no_channel', 'redeem an invite code for this agent first');
     if (!acc.scopes.includes(input.kind)) {
-      fail(403, 'scope_not_allowed', `your access to ${agent.handle} only allows: ${acc.scopes.join(', ')}`, {
-        allowed: acc.scopes,
-      });
+      fail(
+        403,
+        'scope_not_allowed',
+        `your access to ${agent.handle} only allows: ${acc.scopes.join(', ')}`,
+        {
+          allowed: acc.scopes,
+        },
+      );
     }
     const conversationId = this.directConversation(actor, agent);
     return this.sendInConversation(actor, conversationId, agent, input);
@@ -734,7 +846,13 @@ export class Gateway {
     actor: Principal,
     conversationId: string,
     agent: Principal,
-    input: { kind: Scope; project: string | null; title: string | null; body: string; attachments?: AttachmentInput[] },
+    input: {
+      kind: Scope;
+      project: string | null;
+      title: string | null;
+      body: string;
+      attachments?: AttachmentInput[];
+    },
   ): Task {
     if (this.store.member(conversationId, agent.id)?.state !== 'joined') {
       this.addMember(actor, conversationId, agent.handle);
@@ -745,9 +863,15 @@ export class Gateway {
   }
 
   /** The sender adds to a task (answering `input_required`), or the recipient adds a note. */
-  continueTask(actor: Principal, taskId: string, body: string, attachments?: AttachmentInput[]): Task {
+  continueTask(
+    actor: Principal,
+    taskId: string,
+    body: string,
+    attachments?: AttachmentInput[],
+  ): Task {
     const t = this.store.taskRow(taskId);
-    if (!t || (t.senderId !== actor.id && t.recipientId !== actor.id)) return fail(404, 'not_found');
+    if (!t || (t.senderId !== actor.id && t.recipientId !== actor.id))
+      return fail(404, 'not_found');
     if (TERMINAL_STATUSES.includes(t.status)) fail(409, 'task_closed');
     if (t.senderId === actor.id) {
       const agent = this.store.principalById(t.recipientId)!;
@@ -785,11 +909,13 @@ export class Gateway {
     if (!t || !agent || (t.senderId !== actor.id && t.recipientId !== actor.id && !isOwner)) {
       return fail(404, 'not_found');
     }
-    if (t.status === 'pending_approval' && t.recipientId === actor.id) return fail(404, 'not_found');
+    if (t.status === 'pending_approval' && t.recipientId === actor.id)
+      return fail(404, 'not_found');
     const allowed =
       status === 'canceled'
         ? (t.senderId === actor.id || isOwner) && !TERMINAL_STATUSES.includes(t.status)
-        : (t.recipientId === actor.id || isOwner) && RECIPIENT_TRANSITIONS[t.status].includes(status);
+        : (t.recipientId === actor.id || isOwner) &&
+          RECIPIENT_TRANSITIONS[t.status].includes(status);
     if (!allowed) fail(409, 'invalid_transition', undefined, { from: t.status, to: status });
 
     return this.store.tx(() => {
@@ -818,12 +944,22 @@ export class Gateway {
     const a = this.store.pendingApprovalForTask(taskId);
     if (a) {
       const decided = this.store.decideApproval(a.id, 'rejected', actor.id, 'canceled');
-      this.store.emit([a.ownerId, a.requesterId], 'approval.resolved', taskId, this.publicApproval(decided));
+      this.store.emit(
+        [a.ownerId, a.requesterId],
+        'approval.resolved',
+        taskId,
+        this.publicApproval(decided),
+      );
     }
   }
 
   /** Records the outcome and posts it into the conversation. */
-  private applyOutcome(t: TaskRow, status: TaskStatus, result: string | null, canceledBy: Principal | null): Task {
+  private applyOutcome(
+    t: TaskRow,
+    status: TaskStatus,
+    result: string | null,
+    canceledBy: Principal | null,
+  ): Task {
     const updated = this.store.setTaskStatus(t.id, status, result);
     this.emitTask(updated, 'task.updated');
     if (OUTCOMES.includes(status)) {
@@ -846,7 +982,11 @@ export class Gateway {
       });
       this.notifyMessage(msg);
     } else if (canceledBy) {
-      this.systemMessage(t.contextId, canceledBy.id, `@${canceledBy.handle} canceled the request to @${t.to}`);
+      this.systemMessage(
+        t.contextId,
+        canceledBy.id,
+        `@${canceledBy.handle} canceled the request to @${t.to}`,
+      );
     }
     return this.store.getTask(t.id)!;
   }
@@ -885,14 +1025,19 @@ export class Gateway {
       );
       if (a.kind === 'request') {
         if (decision === 'approve') {
-          if (opts.body !== undefined && opts.body !== t.body) this.store.setTaskBody(t.id, opts.body);
+          if (opts.body !== undefined && opts.body !== t.body)
+            this.store.setTaskBody(t.id, opts.body);
           const updated = this.store.setTaskStatus(t.id, 'submitted', null);
           // The agent couldn't see the request until now.
           const msg = t.requestMessageId ? this.store.getMessage(t.requestMessageId) : null;
           if (msg) this.store.emit([t.recipientId], 'message.created', null, msg);
           this.emitTask(updated, 'task.updated');
         } else {
-          const updated = this.store.setTaskStatus(t.id, 'rejected', `Declined by owner${note ? `: ${note}` : ''}`);
+          const updated = this.store.setTaskStatus(
+            t.id,
+            'rejected',
+            `Declined by owner${note ? `: ${note}` : ''}`,
+          );
           this.emitTask(updated, 'task.updated');
           this.systemMessage(
             t.contextId,
@@ -903,7 +1048,11 @@ export class Gateway {
       } else if (decision === 'approve') {
         this.applyOutcome(t, t.pendingStatus ?? 'completed', opts.body ?? t.pendingResult, null);
       } else {
-        const updated = this.store.setTaskStatus(t.id, 'failed', `The owner withheld this reply${note ? `: ${note}` : '.'}`);
+        const updated = this.store.setTaskStatus(
+          t.id,
+          'failed',
+          `The owner withheld this reply${note ? `: ${note}` : '.'}`,
+        );
         this.emitTask(updated, 'task.updated');
         this.systemMessage(
           t.contextId,
@@ -917,7 +1066,9 @@ export class Gateway {
     });
   }
 
-  publicApproval(a: Approval & { agentId?: string; ownerId?: string; requesterId?: string }): Approval {
+  publicApproval(
+    a: Approval & { agentId?: string; ownerId?: string; requesterId?: string },
+  ): Approval {
     const { agentId: _a, ownerId: _o, requesterId: _r, ...rest } = a;
     return rest;
   }
@@ -930,10 +1081,15 @@ export class Gateway {
     const recipient = this.store.principalById(t.recipientId);
     const sender = this.store.principalById(t.senderId);
     if (t.recipientId === actor.id) return t.status !== 'pending_approval';
-    return t.senderId === actor.id || recipient?.ownerId === actor.id || sender?.ownerId === actor.id;
+    return (
+      t.senderId === actor.id || recipient?.ownerId === actor.id || sender?.ownerId === actor.id
+    );
   }
 
-  getTask(actor: Principal, taskId: string): { task: Task; messages: TaskMessage[]; context: Message[] } {
+  getTask(
+    actor: Principal,
+    taskId: string,
+  ): { task: Task; messages: TaskMessage[]; context: Message[] } {
     const t = this.store.taskRow(taskId);
     if (!t || !this.canSeeTask(actor, t)) return fail(404, 'not_found');
     // Recent conversation before the request, as the agent is allowed to see it.
@@ -950,7 +1106,12 @@ export class Gateway {
     return this.store.taskRow(taskId);
   }
 
-  listTasks(actor: Principal, box: 'inbox' | 'outbox', statuses: TaskStatus[] | null, limit: number): Task[] {
+  listTasks(
+    actor: Principal,
+    box: 'inbox' | 'outbox',
+    statuses: TaskStatus[] | null,
+    limit: number,
+  ): Task[] {
     const tasks = this.store.listTasks(actor.id, box, statuses, limit);
     return box === 'inbox' ? tasks.filter((t) => t.status !== 'pending_approval') : tasks;
   }
@@ -973,11 +1134,18 @@ export class Gateway {
   private emitTaskMessage(t: TaskRow, m: TaskMessage): void {
     const sender = this.store.principalById(t.senderId);
     const recipient = this.store.principalById(t.recipientId);
-    const ids = [t.senderId, t.recipientId, sender?.ownerId, recipient?.ownerId].filter(Boolean) as string[];
+    const ids = [t.senderId, t.recipientId, sender?.ownerId, recipient?.ownerId].filter(
+      Boolean,
+    ) as string[];
     this.store.emit(ids, 'task.message', t.id, m);
   }
 
-  private notifyConversation(conversationId: string, type: GatewayEventType, data: unknown, extra: string[] = []): void {
+  private notifyConversation(
+    conversationId: string,
+    type: GatewayEventType,
+    data: unknown,
+    extra: string[] = [],
+  ): void {
     const ids = this.store
       .members(conversationId)
       .filter((m) => m.state === 'joined')

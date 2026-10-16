@@ -95,26 +95,49 @@ export async function startTelegramBridge(gateway: Gateway, opts: TelegramOption
 
   async function notifyApproval(chatId: string, a: Approval) {
     const sent = await send(chatId, describeApproval(a), buttons(a.id));
-    store.mapTelegramMessage(chatId, sent.message_id, { approvalId: a.id, conversationId: a.conversationId });
+    store.mapTelegramMessage(chatId, sent.message_id, {
+      approvalId: a.id,
+      conversationId: a.conversationId,
+    });
   }
 
   async function notifyMessage(chatId: string, person: Principal, msg: Message) {
     if (msg.author === person.handle || msg.kind === 'system') return;
     const conv = store.getConversation(msg.conversationId);
-    const title = conv?.title ?? conv?.members.filter((m) => m.handle !== person.handle).map((m) => m.handle).join(', ');
-    const waits = msg.deliveries.some((d) => d.status === 'pending_approval') ? '\n⏳ waiting for approval' : '';
-    const files = msg.attachments.length ? `\n📎 ${msg.attachments.map((a) => a.filename).join(', ')}` : '';
-    const sent = await send(chatId, `💬 ${title}\n${msg.author}${msg.authorKind === 'agent' ? ' (agent)' : ''}: ${msg.body}${files}${waits}`);
+    const title =
+      conv?.title ??
+      conv?.members
+        .filter((m) => m.handle !== person.handle)
+        .map((m) => m.handle)
+        .join(', ');
+    const waits = msg.deliveries.some((d) => d.status === 'pending_approval')
+      ? '\n⏳ waiting for approval'
+      : '';
+    const files = msg.attachments.length
+      ? `\n📎 ${msg.attachments.map((a) => a.filename).join(', ')}`
+      : '';
+    const sent = await send(
+      chatId,
+      `💬 ${title}\n${msg.author}${msg.authorKind === 'agent' ? ' (agent)' : ''}: ${msg.body}${files}${waits}`,
+    );
     store.mapTelegramMessage(chatId, sent.message_id, { conversationId: msg.conversationId });
   }
 
   async function markResolved(a: Approval) {
     for (const ref of store.telegramMessagesForApproval(a.id)) {
       const verdict = a.status === 'approved' ? '✅ Approved' : '❌ Rejected';
-      await call('editMessageReplyMarkup', { chat_id: ref.chatId, message_id: ref.messageId, reply_markup: { inline_keyboard: [] } }).catch(() => {});
-      await send(ref.chatId, `${verdict}${a.decidedBy ? ` by ${a.decidedBy}` : ''}${a.note ? `: ${a.note}` : ''}`, {
-        reply_to_message_id: ref.messageId,
+      await call('editMessageReplyMarkup', {
+        chat_id: ref.chatId,
+        message_id: ref.messageId,
+        reply_markup: { inline_keyboard: [] },
       }).catch(() => {});
+      await send(
+        ref.chatId,
+        `${verdict}${a.decidedBy ? ` by ${a.decidedBy}` : ''}${a.note ? `: ${a.note}` : ''}`,
+        {
+          reply_to_message_id: ref.messageId,
+        },
+      ).catch(() => {});
     }
   }
 
@@ -135,7 +158,10 @@ export async function startTelegramBridge(gateway: Gateway, opts: TelegramOption
         await notifyMessage(chatId, person, e.data as Message);
       } else if (e.type === 'conversation.invited') {
         const conv = e.data as { id: string; title: string | null; createdBy: string };
-        await send(chatId, `✉️ You were invited to “${conv.title ?? 'a conversation'}”. Open the app to join${opts.appUrl ? `: ${opts.appUrl}/app` : '.'}`);
+        await send(
+          chatId,
+          `✉️ You were invited to “${conv.title ?? 'a conversation'}”. Open the app to join${opts.appUrl ? `: ${opts.appUrl}/app` : '.'}`,
+        );
       }
     };
     run().catch((err) => console.error('telegram notify failed:', (err as Error).message));
@@ -153,13 +179,26 @@ export async function startTelegramBridge(gateway: Gateway, opts: TelegramOption
     const argText = rest.join(' ');
 
     if (command === '/start') {
-      if (!argText) return reply(chatId, 'Open the Agent Gateway web app → Settings → Link Telegram, then send /start <code> here.');
+      if (!argText)
+        return reply(
+          chatId,
+          'Open the Agent Gateway web app → Settings → Link Telegram, then send /start <code> here.',
+        );
       const person = gateway.linkTelegram(argText, chatId);
-      return reply(chatId, person ? `Linked to ${person.handle}. You’ll get approval requests and conversation messages here. /quiet for approvals only.` : 'That code is invalid or expired. Make a new one in the web app.');
+      return reply(
+        chatId,
+        person
+          ? `Linked to ${person.handle}. You’ll get approval requests and conversation messages here. /quiet for approvals only.`
+          : 'That code is invalid or expired. Make a new one in the web app.',
+      );
     }
 
     const person = store.principalByTelegramChat(chatId);
-    if (!person) return reply(chatId, 'This chat isn’t linked. In the web app: Settings → Link Telegram, then /start <code>.');
+    if (!person)
+      return reply(
+        chatId,
+        'This chat isn’t linked. In the web app: Settings → Link Telegram, then /start <code>.',
+      );
 
     try {
       switch (command) {
@@ -171,17 +210,30 @@ export async function startTelegramBridge(gateway: Gateway, opts: TelegramOption
         }
         case '/agents': {
           const agents = store.agentsOwnedBy(person.id);
-          return reply(chatId, agents.length ? agents.map((a) => `${a.handle}${a.paused ? ' (paused)' : ''}`).join('\n') : 'You have no agents yet.');
+          return reply(
+            chatId,
+            agents.length
+              ? agents.map((a) => `${a.handle}${a.paused ? ' (paused)' : ''}`).join('\n')
+              : 'You have no agents yet.',
+          );
         }
         case '/pause':
         case '/resume': {
           const agent = gateway.updateAgent(person, argText, { paused: command === '/pause' });
-          return reply(chatId, `${agent.handle} is ${agent.paused ? 'paused: nothing reaches it until you approve' : 'running again'}.`);
+          return reply(
+            chatId,
+            `${agent.handle} is ${agent.paused ? 'paused: nothing reaches it until you approve' : 'running again'}.`,
+          );
         }
         case '/quiet':
         case '/all':
           store.setTelegramNotify(person.id, command === '/quiet' ? 'approvals' : 'all');
-          return reply(chatId, command === '/quiet' ? 'Only approval requests from now on.' : 'You’ll see all conversation messages.');
+          return reply(
+            chatId,
+            command === '/quiet'
+              ? 'Only approval requests from now on.'
+              : 'You’ll see all conversation messages.',
+          );
         case '/unlink':
           gateway.unlinkTelegram(person);
           return reply(chatId, 'Unlinked. Bye!');
@@ -189,7 +241,9 @@ export async function startTelegramBridge(gateway: Gateway, opts: TelegramOption
           return reply(chatId, HELP);
       }
 
-      const ref = m.reply_to_message ? store.telegramMessage(chatId, m.reply_to_message.message_id) : null;
+      const ref = m.reply_to_message
+        ? store.telegramMessage(chatId, m.reply_to_message.message_id)
+        : null;
       if (ref?.approvalId) {
         const a = store.approval(ref.approvalId);
         if (a?.status === 'pending') {

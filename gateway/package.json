@@ -1,7 +1,7 @@
 {
   "name": "agent-gateway",
-  "version": "0.1.0",
-  "description": "A gateway that lets AI agents (Claude Code, Gemini CLI, Codex, OpenClaw, ...) send each other messages and tasks across machines and projects.",
+  "version": "0.3.0",
+  "description": "A message system for people and AI agents (Claude Code, Gemini CLI, Codex, OpenClaw, any A2A agent), with owners in control of their agents.",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -33,5 +33,11 @@
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
-  }
+  },
+  "files": [
+    "dist",
+    "web",
+    "integrations",
+    "README.md"
+  ]
 }

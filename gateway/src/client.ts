@@ -78,7 +78,12 @@ export class GatewayClient {
     readonly token?: string,
   ) {}
 
-  private async req<T>(method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<T> {
+  private async req<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    headers: Record<string, string> = {},
+  ): Promise<T> {
     const res = await fetch(new URL(path, this.url), {
       method,
       headers: {
@@ -129,10 +134,14 @@ export class GatewayClient {
   }
 
   login(handle: string, password: string) {
-    return this.req<{ person: Principal; token: string; expiresAt: string }>('POST', '/v1/sessions', {
-      handle,
-      password,
-    });
+    return this.req<{ person: Principal; token: string; expiresAt: string }>(
+      'POST',
+      '/v1/sessions',
+      {
+        handle,
+        password,
+      },
+    );
   }
 
   logout() {
@@ -147,12 +156,22 @@ export class GatewayClient {
     return this.req<{ agents: Principal[] }>('GET', '/v1/agents');
   }
 
-  updateAgent(handle: string, patch: { description?: string | null; discoverable?: boolean; paused?: boolean }) {
-    return this.req<{ agent: Principal }>('PATCH', `/v1/agents/${encodeURIComponent(handle)}`, patch);
+  updateAgent(
+    handle: string,
+    patch: { description?: string | null; discoverable?: boolean; paused?: boolean },
+  ) {
+    return this.req<{ agent: Principal }>(
+      'PATCH',
+      `/v1/agents/${encodeURIComponent(handle)}`,
+      patch,
+    );
   }
 
   rotateAgentToken(handle: string) {
-    return this.req<{ agent: Principal; token: string }>('POST', `/v1/agents/${encodeURIComponent(handle)}/token`);
+    return this.req<{ agent: Principal; token: string }>(
+      'POST',
+      `/v1/agents/${encodeURIComponent(handle)}/token`,
+    );
   }
 
   // ---- sharing ----
@@ -171,7 +190,12 @@ export class GatewayClient {
 
   updateChannel(
     id: string,
-    patch: { scopes?: Scope[]; approval?: ApprovalMode; includeAgents?: boolean; expiresAt?: string | null },
+    patch: {
+      scopes?: Scope[];
+      approval?: ApprovalMode;
+      includeAgents?: boolean;
+      expiresAt?: string | null;
+    },
   ) {
     return this.req<{ channel: Channel }>('PATCH', `/v1/channels/${encodeURIComponent(id)}`, patch);
   }
@@ -208,7 +232,11 @@ export class GatewayClient {
     );
   }
 
-  setStatus(id: string, status: Exclude<TaskStatus, 'submitted' | 'pending_approval' | 'reviewing'>, result?: string) {
+  setStatus(
+    id: string,
+    status: Exclude<TaskStatus, 'submitted' | 'pending_approval' | 'reviewing'>,
+    result?: string,
+  ) {
     return this.req<{ task: Task }>('POST', `/v1/tasks/${encodeURIComponent(id)}/status`, {
       status,
       ...(result === undefined ? {} : { result }),
@@ -217,7 +245,9 @@ export class GatewayClient {
 
   /** Add to a task: as sender, answers `input_required`; otherwise a note on the thread. */
   message(id: string, body: string) {
-    return this.req<{ task: Task }>('POST', `/v1/tasks/${encodeURIComponent(id)}/messages`, { body });
+    return this.req<{ task: Task }>('POST', `/v1/tasks/${encodeURIComponent(id)}/messages`, {
+      body,
+    });
   }
 
   // ---- conversations ----
@@ -231,11 +261,18 @@ export class GatewayClient {
   }
 
   conversation(id: string) {
-    return this.req<{ conversation: Conversation }>('GET', `/v1/conversations/${encodeURIComponent(id)}`);
+    return this.req<{ conversation: Conversation }>(
+      'GET',
+      `/v1/conversations/${encodeURIComponent(id)}`,
+    );
   }
 
   renameConversation(id: string, title: string | null) {
-    return this.req<{ conversation: Conversation }>('PATCH', `/v1/conversations/${encodeURIComponent(id)}`, { title });
+    return this.req<{ conversation: Conversation }>(
+      'PATCH',
+      `/v1/conversations/${encodeURIComponent(id)}`,
+      { title },
+    );
   }
 
   messages(id: string, opts: { before?: number; after?: number; limit?: number } = {}) {
@@ -257,13 +294,21 @@ export class GatewayClient {
       attachments?: AttachmentUpload[];
     },
   ) {
-    return this.req<{ message: Message }>('POST', `/v1/conversations/${encodeURIComponent(id)}/messages`, input);
+    return this.req<{ message: Message }>(
+      'POST',
+      `/v1/conversations/${encodeURIComponent(id)}/messages`,
+      input,
+    );
   }
 
   addMember(id: string, handle: string) {
-    return this.req<{ conversation: Conversation }>('POST', `/v1/conversations/${encodeURIComponent(id)}/members`, {
-      handle,
-    });
+    return this.req<{ conversation: Conversation }>(
+      'POST',
+      `/v1/conversations/${encodeURIComponent(id)}/members`,
+      {
+        handle,
+      },
+    );
   }
 
   removeMember(id: string, handle: string) {
@@ -282,7 +327,9 @@ export class GatewayClient {
   }
 
   markRead(id: string, seq: number) {
-    return this.req<{ ok: true }>('POST', `/v1/conversations/${encodeURIComponent(id)}/read`, { seq });
+    return this.req<{ ok: true }>('POST', `/v1/conversations/${encodeURIComponent(id)}/read`, {
+      seq,
+    });
   }
 
   // ---- approvals ----
@@ -292,7 +339,10 @@ export class GatewayClient {
   }
 
   decide(id: string, decision: 'approve' | 'reject', opts: { body?: string; note?: string } = {}) {
-    return this.req<{ approval: Approval }>('POST', `/v1/approvals/${encodeURIComponent(id)}`, { decision, ...opts });
+    return this.req<{ approval: Approval }>('POST', `/v1/approvals/${encodeURIComponent(id)}`, {
+      decision,
+      ...opts,
+    });
   }
 
   // ---- files ----
@@ -363,7 +413,9 @@ export class GatewayClient {
   }
 }
 
-async function* sseFrames(body: ReadableStream<Uint8Array>): AsyncGenerator<{ event: string; data: string }> {
+async function* sseFrames(
+  body: ReadableStream<Uint8Array>,
+): AsyncGenerator<{ event: string; data: string }> {
   const decoder = new TextDecoder();
   let buf = '';
   for await (const chunk of body) {
@@ -399,7 +451,11 @@ export function configDir(): string {
 
 export function loadConfig(): LocalConfig | null {
   if (process.env.AGW_URL && process.env.AGW_TOKEN) {
-    return { url: process.env.AGW_URL, token: process.env.AGW_TOKEN, handle: process.env.AGW_HANDLE ?? '' };
+    return {
+      url: process.env.AGW_URL,
+      token: process.env.AGW_TOKEN,
+      handle: process.env.AGW_HANDLE ?? '',
+    };
   }
   try {
     return JSON.parse(readFileSync(join(configDir(), 'config.json'), 'utf8')) as LocalConfig;

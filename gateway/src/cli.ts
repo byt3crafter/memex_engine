@@ -165,7 +165,8 @@ async function password(prompt: string): Promise<string> {
 function scopesOption(): Scope[] | undefined {
   if (!values.scopes) return undefined;
   const scopes = values.scopes.split(',').map((s) => s.trim()) as Scope[];
-  if (scopes.some((s) => !SCOPES.includes(s))) throw new Error(`scopes must be from: ${SCOPES.join(', ')}`);
+  if (scopes.some((s) => !SCOPES.includes(s)))
+    throw new Error(`scopes must be from: ${SCOPES.join(', ')}`);
   return scopes;
 }
 
@@ -217,7 +218,10 @@ async function main() {
   switch (cmd) {
     case 'serve': {
       silenceSqliteWarning();
-      const [{ Store }, { startServer }] = await Promise.all([import('./store.js'), import('./listen.js')]);
+      const [{ Store }, { startServer }] = await Promise.all([
+        import('./store.js'),
+        import('./listen.js'),
+      ]);
       const store = new Store(values.db);
       const server = await startServer(store, {
         port: Number(values.port),
@@ -241,7 +245,9 @@ async function main() {
         console.log(`Telegram bridge running as @${bot.username}`);
       }
       if (!process.env.AGW_REGISTRATION_KEY && values.host !== '127.0.0.1') {
-        console.warn('warning: open registration. Set AGW_REGISTRATION_KEY before exposing this publicly.');
+        console.warn(
+          'warning: open registration. Set AGW_REGISTRATION_KEY before exposing this publicly.',
+        );
       }
       return;
     }
@@ -258,13 +264,18 @@ async function main() {
         values.key,
       );
       const path = saveConfig({ url, token, handle: person.handle, kind: 'human' });
-      return console.log(`Welcome, ${person.handle}. Signed in on ${url} (saved to ${path}). Web app: ${url}/app`);
+      return console.log(
+        `Welcome, ${person.handle}. Signed in on ${url} (saved to ${path}). Web app: ${url}/app`,
+      );
     }
 
     case 'login': {
       const handle = need(args[0], 'agw login <handle> --url <gateway>');
       const url = gatewayUrl();
-      const { person, token } = await new GatewayClient(url).login(handle, await password('Password: '));
+      const { person, token } = await new GatewayClient(url).login(
+        handle,
+        await password('Password: '),
+      );
       const path = saveConfig({ url, token, handle: person.handle, kind: 'human' });
       return console.log(`Signed in as ${person.handle} (saved to ${path}).`);
     }
@@ -277,16 +288,28 @@ async function main() {
     case 'register': {
       const handle = need(args[0], 'agw register <handle> --url <gateway>');
       const url = gatewayUrl();
-      const { agent, token } = await new GatewayClient(url).register(handle, values.description, values.key);
+      const { agent, token } = await new GatewayClient(url).register(
+        handle,
+        values.description,
+        values.key,
+      );
       const path = saveConfig({ url, token, handle: agent.handle, kind: 'agent' });
       return console.log(`Registered agent "${agent.handle}" on ${url}. Token saved to ${path}`);
     }
 
     case 'whoami': {
       const { principal: p, channels, agents, telegramLinked } = await clientFromConfig().me();
-      console.log(`${p.handle}  (${p.kind === 'human' ? 'person' : 'agent'}${p.owner ? `, owned by ${p.owner}` : ''})`);
-      if (agents.length) console.log(`agents: ${agents.map((a) => `${a.handle}${a.paused ? ' (paused)' : ''}`).join(', ')}`);
-      if (p.kind === 'human') console.log(`telegram: ${telegramLinked ? 'linked' : 'not linked (link it in the web app)'}`);
+      console.log(
+        `${p.handle}  (${p.kind === 'human' ? 'person' : 'agent'}${p.owner ? `, owned by ${p.owner}` : ''})`,
+      );
+      if (agents.length)
+        console.log(
+          `agents: ${agents.map((a) => `${a.handle}${a.paused ? ' (paused)' : ''}`).join(', ')}`,
+        );
+      if (p.kind === 'human')
+        console.log(
+          `telegram: ${telegramLinked ? 'linked' : 'not linked (link it in the web app)'}`,
+        );
       for (const c of channels) console.log(`  ${accessLine(c)}`);
       return;
     }
@@ -303,9 +326,16 @@ async function main() {
           if (values.home) {
             const prev = process.env.AGW_HOME;
             process.env.AGW_HOME = values.home;
-            const path = saveConfig({ url: client.url, token, handle: agent.handle, kind: 'agent' });
+            const path = saveConfig({
+              url: client.url,
+              token,
+              handle: agent.handle,
+              kind: 'agent',
+            });
             process.env.AGW_HOME = prev;
-            console.log(`Created ${agent.handle}. Token saved to ${path}; run it with AGW_HOME=${values.home} agw run`);
+            console.log(
+              `Created ${agent.handle}. Token saved to ${path}; run it with AGW_HOME=${values.home} agw run`,
+            );
           } else {
             console.log(`Created ${agent.handle}. Token (shown once):\n${token}`);
           }
@@ -313,13 +343,17 @@ async function main() {
         }
         case 'list': {
           for (const a of (await client.myAgents()).agents) {
-            console.log(`${a.handle}${a.paused ? '  PAUSED' : ''}${a.discoverable ? '  (public card)' : ''}  ${a.description ?? ''}`);
+            console.log(
+              `${a.handle}${a.paused ? '  PAUSED' : ''}${a.discoverable ? '  (public card)' : ''}  ${a.description ?? ''}`,
+            );
           }
           return;
         }
         case 'pause':
         case 'resume': {
-          const { agent } = await client.updateAgent(need(handle, `agw agent ${sub} <handle>`), { paused: sub === 'pause' });
+          const { agent } = await client.updateAgent(need(handle, `agw agent ${sub} <handle>`), {
+            paused: sub === 'pause',
+          });
           return console.log(`${agent.handle} is ${agent.paused ? 'paused' : 'running'}.`);
         }
         case 'list-public':
@@ -327,10 +361,14 @@ async function main() {
           const { agent } = await client.updateAgent(need(handle, `agw agent ${sub} <handle>`), {
             discoverable: sub === 'list-public',
           });
-          return console.log(`${agent.handle}'s A2A card is ${agent.discoverable ? 'public' : 'private'}.`);
+          return console.log(
+            `${agent.handle}'s A2A card is ${agent.discoverable ? 'public' : 'private'}.`,
+          );
         }
         case 'token': {
-          const { agent, token } = await client.rotateAgentToken(need(handle, 'agw agent token <handle>'));
+          const { agent, token } = await client.rotateAgentToken(
+            need(handle, 'agw agent token <handle>'),
+          );
           return console.log(`New token for ${agent.handle} (shown once):\n${token}`);
         }
         default:
@@ -352,10 +390,14 @@ async function main() {
         mutual: values.mutual,
         includeAgents: !values['own-agents-only'],
         ttlSeconds: Math.round(Number(values['ttl-hours']) * 3600),
-        ...(values['access-days'] ? { grantTtlSeconds: Math.round(Number(values['access-days']) * 86400) } : {}),
+        ...(values['access-days']
+          ? { grantTtlSeconds: Math.round(Number(values['access-days']) * 86400) }
+          : {}),
       });
       console.log(`Invite code: ${invite.code}`);
-      console.log(`Gives access to ${invite.agent}: ${invite.scopes.join(', ')}; approval: ${invite.approval}`);
+      console.log(
+        `Gives access to ${invite.agent}: ${invite.scopes.join(', ')}; approval: ${invite.approval}`,
+      );
       console.log(`Single use, expires ${invite.expiresAt}`);
       return;
     }
@@ -372,10 +414,13 @@ async function main() {
       if (args[0] === 'set') {
         const scopes = scopesOption();
         const approval = approvalOption();
-        const { channel } = await client.updateChannel(need(args[1], 'agw access set <id> [--approval mode]'), {
-          ...(scopes ? { scopes } : {}),
-          ...(approval ? { approval } : {}),
-        });
+        const { channel } = await client.updateChannel(
+          need(args[1], 'agw access set <id> [--approval mode]'),
+          {
+            ...(scopes ? { scopes } : {}),
+            ...(approval ? { approval } : {}),
+          },
+        );
         return console.log(accessLine(channel));
       }
       const { channels } = await client.channels();
@@ -396,10 +441,16 @@ async function main() {
       for (const c of conversations) {
         const status = c.myState === 'invited' ? 'INVITED' : c.unread ? `${c.unread} new` : '';
         console.log(`${c.id}  ${c.title ?? '(untitled)'}  ${status}`);
-        console.log(`    ${c.members.map((m) => `${m.handle}${m.kind === 'agent' ? '*' : ''}`).join(', ')}`);
-        if (c.lastMessage) console.log(`    ${c.lastMessage.author}: ${c.lastMessage.body.split('\n')[0]!.slice(0, 80)}`);
+        console.log(
+          `    ${c.members.map((m) => `${m.handle}${m.kind === 'agent' ? '*' : ''}`).join(', ')}`,
+        );
+        if (c.lastMessage)
+          console.log(
+            `    ${c.lastMessage.author}: ${c.lastMessage.body.split('\n')[0]!.slice(0, 80)}`,
+          );
       }
-      if (!conversations.length) console.log('No conversations. Start one with `agw chat new <handle...>`.');
+      if (!conversations.length)
+        console.log('No conversations. Start one with `agw chat new <handle...>`.');
       return;
     }
 
@@ -409,8 +460,13 @@ async function main() {
       switch (sub) {
         case 'new': {
           const members = [conv, ...rest].filter((x): x is string => Boolean(x));
-          const { conversation } = await client.createConversation({ title: values.title ?? null, members });
-          return console.log(`Started ${conversation.id}: ${conversation.members.map((m) => m.handle).join(', ')}`);
+          const { conversation } = await client.createConversation({
+            title: values.title ?? null,
+            members,
+          });
+          return console.log(
+            `Started ${conversation.id}: ${conversation.members.map((m) => m.handle).join(', ')}`,
+          );
         }
         case 'read': {
           const id = need(conv, 'agw chat read <conversation>');
@@ -437,7 +493,9 @@ async function main() {
             need(conv, 'agw chat add <conversation> <handle>'),
             need(rest[0], 'agw chat add <conversation> <handle>'),
           );
-          return console.log(`Members: ${conversation.members.map((m) => `${m.handle} (${m.state})`).join(', ')}`);
+          return console.log(
+            `Members: ${conversation.members.map((m) => `${m.handle} (${m.state})`).join(', ')}`,
+          );
         }
         case 'leave': {
           const me = loadConfig()?.handle ?? (await client.me()).principal.handle;
@@ -446,7 +504,10 @@ async function main() {
         }
         case 'join':
         case 'decline': {
-          await client.respondToInvitation(need(conv, `agw chat ${sub} <conversation>`), sub === 'join');
+          await client.respondToInvitation(
+            need(conv, `agw chat ${sub} <conversation>`),
+            sub === 'join',
+          );
           return console.log(sub === 'join' ? 'Joined.' : 'Declined.');
         }
         default:
@@ -461,7 +522,9 @@ async function main() {
     case 'approvals': {
       const { approvals } = await clientFromConfig().approvals(values.all ? 'all' : 'pending');
       for (const a of approvals) {
-        console.log(`${a.id}  ${a.status.toUpperCase()}  ${a.kind}: ${a.requester} -> ${a.agent}  (${a.conversationId})`);
+        console.log(
+          `${a.id}  ${a.status.toUpperCase()}  ${a.kind}: ${a.requester} -> ${a.agent}  (${a.conversationId})`,
+        );
         console.log(a.body.replace(/^/gm, '    '));
       }
       if (!approvals.length) console.log('Nothing waiting for you.');
@@ -474,7 +537,9 @@ async function main() {
         ...(values.edit !== undefined ? { body: values.edit } : {}),
         ...(values.note ? { note: values.note } : {}),
       });
-      return console.log(`${approval.status}: ${approval.kind} from ${approval.requester} to ${approval.agent}`);
+      return console.log(
+        `${approval.status}: ${approval.kind} from ${approval.requester} to ${approval.agent}`,
+      );
     }
 
     // ---- tasks ----
@@ -507,7 +572,8 @@ async function main() {
     case 'outbox': {
       const { tasks } = await clientFromConfig().list(cmd, values.all ? undefined : [...open]);
       for (const t of tasks) console.log(line(t));
-      if (!tasks.length) console.log(values.all ? 'Empty.' : 'Nothing open. Use --all to include finished tasks.');
+      if (!tasks.length)
+        console.log(values.all ? 'Empty.' : 'Nothing open. Use --all to include finished tasks.');
       return;
     }
 
@@ -516,12 +582,18 @@ async function main() {
 
     case 'reply': {
       const id = need(args[0], 'agw reply <task-id> <text...>');
-      const { task } = await clientFromConfig().message(id, need(args.slice(1).join(' '), 'agw reply <task-id> <text...>'));
+      const { task } = await clientFromConfig().message(
+        id,
+        need(args.slice(1).join(' '), 'agw reply <task-id> <text...>'),
+      );
       return console.log(line(task));
     }
 
     case 'cancel': {
-      const { task } = await clientFromConfig().setStatus(need(args[0], 'agw cancel <task-id>'), 'canceled');
+      const { task } = await clientFromConfig().setStatus(
+        need(args[0], 'agw cancel <task-id>'),
+        'canceled',
+      );
       return console.log(line(task));
     }
 
@@ -544,31 +616,45 @@ async function main() {
       const agentUrl = need(target, `agw a2a ${sub ?? '<card|send|get|cancel>'} <agent-url> ...`);
       switch (sub) {
         case 'card':
-          return console.log(JSON.stringify(await a2a.getAgentCard(agentUrl, values.token), null, 2));
+          return console.log(
+            JSON.stringify(await a2a.getAgentCard(agentUrl, values.token), null, 2),
+          );
         case 'send': {
           const files = filesOption();
-          const result = await a2a.sendA2A(agentUrl, need(rest.join(' '), 'agw a2a send <agent-url> <text...>'), {
-            token: values.token,
-            kind: values.task ? 'task' : undefined,
-            project: values.project,
-            title: values.title,
-            taskId: values['task-id'],
-            contextId: values['context-id'],
-            wait: !values['no-wait'],
-            ...(files.length ? { files } : {}),
-          });
+          const result = await a2a.sendA2A(
+            agentUrl,
+            need(rest.join(' '), 'agw a2a send <agent-url> <text...>'),
+            {
+              token: values.token,
+              kind: values.task ? 'task' : undefined,
+              project: values.project,
+              title: values.title,
+              taskId: values['task-id'],
+              contextId: values['context-id'],
+              wait: !values['no-wait'],
+              ...(files.length ? { files } : {}),
+            },
+          );
           return console.log(a2a.describeA2A(result));
         }
         case 'get':
           return console.log(
             a2a.describeA2A({
-              task: await a2a.getA2ATask(agentUrl, need(rest[0], 'agw a2a get <agent-url> <task-id>'), values.token),
+              task: await a2a.getA2ATask(
+                agentUrl,
+                need(rest[0], 'agw a2a get <agent-url> <task-id>'),
+                values.token,
+              ),
             }),
           );
         case 'cancel':
           return console.log(
             a2a.describeA2A({
-              task: await a2a.cancelA2ATask(agentUrl, need(rest[0], 'agw a2a cancel <agent-url> <task-id>'), values.token),
+              task: await a2a.cancelA2ATask(
+                agentUrl,
+                need(rest[0], 'agw a2a cancel <agent-url> <task-id>'),
+                values.token,
+              ),
             }),
           );
         default:

@@ -277,7 +277,9 @@ export class Store {
   constructor(path = ':memory:') {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
-    this.db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
+    this.db.exec(
+      'PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;',
+    );
     this.db.exec(BASE_SCHEMA);
     this.migrate();
   }
@@ -310,7 +312,13 @@ export class Store {
           .prepare(
             'INSERT INTO conversations (id, title, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
           )
-          .run(convId, str(t.title), String(t.sender_id), String(t.created_at), String(t.updated_at));
+          .run(
+            convId,
+            str(t.title),
+            String(t.sender_id),
+            String(t.created_at),
+            String(t.updated_at),
+          );
         this.setMember(convId, String(t.sender_id), 'admin', 'joined', null);
         this.setMember(convId, String(t.recipient_id), 'member', 'joined', null);
       }
@@ -323,7 +331,9 @@ export class Store {
         replyTo: null,
         taskId: null,
       });
-      this.db.prepare('UPDATE tasks SET request_message_id = ? WHERE id = ?').run(msg.id, String(t.id));
+      this.db
+        .prepare('UPDATE tasks SET request_message_id = ? WHERE id = ?')
+        .run(msg.id, String(t.id));
       if (t.result != null) {
         this.insertMessage({
           conversationId: convId,
@@ -421,7 +431,10 @@ export class Store {
   }
 
   principalByTokenHash(tokenHash: string): Principal | null {
-    const r = this.get<Row>("SELECT id FROM agents WHERE token_hash = ? AND kind = 'agent'", tokenHash);
+    const r = this.get<Row>(
+      "SELECT id FROM agents WHERE token_hash = ? AND kind = 'agent'",
+      tokenHash,
+    );
     return r ? this.principalById(String(r.id)) : null;
   }
 
@@ -460,9 +473,10 @@ export class Store {
   }
 
   agentsOwnedBy(ownerId: string): Principal[] {
-    return this.all<Row>('SELECT id FROM agents WHERE owner_id = ? ORDER BY created_at', ownerId).map(
-      (r) => this.principalById(String(r.id))!,
-    );
+    return this.all<Row>(
+      'SELECT id FROM agents WHERE owner_id = ? ORDER BY created_at',
+      ownerId,
+    ).map((r) => this.principalById(String(r.id))!);
   }
 
   handleOf(id: string): string {
@@ -616,14 +630,26 @@ export class Store {
 
   updateChannel(
     id: string,
-    patch: Partial<{ scopes: Scope[]; approval: ApprovalMode; includeAgents: boolean; expiresAt: string | null }>,
+    patch: Partial<{
+      scopes: Scope[];
+      approval: ApprovalMode;
+      includeAgents: boolean;
+      expiresAt: string | null;
+    }>,
   ): ChannelRow {
-    if (patch.scopes) this.run('UPDATE channels SET scopes = ? WHERE id = ?', patch.scopes.join(','), id);
-    if (patch.approval) this.run('UPDATE channels SET approval = ? WHERE id = ?', patch.approval, id);
+    if (patch.scopes)
+      this.run('UPDATE channels SET scopes = ? WHERE id = ?', patch.scopes.join(','), id);
+    if (patch.approval)
+      this.run('UPDATE channels SET approval = ? WHERE id = ?', patch.approval, id);
     if (patch.includeAgents !== undefined) {
-      this.run('UPDATE channels SET include_agents = ? WHERE id = ?', patch.includeAgents ? 1 : 0, id);
+      this.run(
+        'UPDATE channels SET include_agents = ? WHERE id = ?',
+        patch.includeAgents ? 1 : 0,
+        id,
+      );
     }
-    if (patch.expiresAt !== undefined) this.run('UPDATE channels SET expires_at = ? WHERE id = ?', patch.expiresAt, id);
+    if (patch.expiresAt !== undefined)
+      this.run('UPDATE channels SET expires_at = ? WHERE id = ?', patch.expiresAt, id);
     return this.channelById(id)!;
   }
 
@@ -651,7 +677,12 @@ export class Store {
 
   // ---- conversations ----
 
-  createConversation(input: { title: string | null; createdBy: string; directKey?: string | null; id?: string }): string {
+  createConversation(input: {
+    title: string | null;
+    createdBy: string;
+    directKey?: string | null;
+    id?: string;
+  }): string {
     const id = input.id ?? newId('cnv');
     const ts = now();
     this.run(
@@ -755,7 +786,10 @@ export class Store {
   }
 
   members(conversationId: string): MemberRow[] {
-    return this.all('SELECT * FROM conversation_members WHERE conversation_id = ?', conversationId).map((r) => ({
+    return this.all(
+      'SELECT * FROM conversation_members WHERE conversation_id = ?',
+      conversationId,
+    ).map((r) => ({
       principalId: String(r.principal_id),
       role: String(r.role) as MemberRole,
       state: String(r.state) as MemberState,
@@ -784,7 +818,7 @@ export class Store {
   unreadCount(conversationId: string, principalId: string, lastReadSeq: number): number {
     return Number(
       this.get<Row>(
-        'SELECT COUNT(*) AS n FROM messages WHERE conversation_id = ? AND seq > ? AND author_id != ?',
+        "SELECT COUNT(*) AS n FROM messages WHERE conversation_id = ? AND seq > ? AND author_id != ? AND kind != 'system'",
         conversationId,
         lastReadSeq,
         principalId,
@@ -835,7 +869,10 @@ export class Store {
     return r ? this.toMessage(r) : null;
   }
 
-  messages(conversationId: string, opts: { beforeSeq?: number; afterSeq?: number; limit: number }): Message[] {
+  messages(
+    conversationId: string,
+    opts: { beforeSeq?: number; afterSeq?: number; limit: number },
+  ): Message[] {
     const rows = this.all(
       `SELECT m.*, a.handle, a.kind AS author_kind FROM messages m JOIN agents a ON a.id = m.author_id
        WHERE m.conversation_id = ? AND m.seq < ? AND m.seq > ? ORDER BY m.seq DESC LIMIT ?`,
@@ -871,7 +908,11 @@ export class Store {
       `SELECT t.id, t.status, a.handle FROM tasks t JOIN agents a ON a.id = t.recipient_id
        WHERE t.request_message_id = ? ORDER BY t.created_at`,
       messageId,
-    ).map((r) => ({ taskId: String(r.id), to: String(r.handle), status: String(r.status) as TaskStatus }));
+    ).map((r) => ({
+      taskId: String(r.id),
+      to: String(r.handle),
+      status: String(r.status) as TaskStatus,
+    }));
   }
 
   // ---- attachments ----
@@ -900,7 +941,12 @@ export class Store {
       input.createdBy,
       now(),
     );
-    return { id, filename: input.filename, mediaType: input.mediaType, size: input.data.byteLength };
+    return {
+      id,
+      filename: input.filename,
+      mediaType: input.mediaType,
+      size: input.data.byteLength,
+    };
   }
 
   attachmentsFor(messageId: string): Attachment[] {
@@ -978,7 +1024,12 @@ export class Store {
     return task;
   }
 
-  listTasks(principalId: string, box: 'inbox' | 'outbox', statuses: TaskStatus[] | null, limit: number): Task[] {
+  listTasks(
+    principalId: string,
+    box: 'inbox' | 'outbox',
+    statuses: TaskStatus[] | null,
+    limit: number,
+  ): Task[] {
     const col = box === 'inbox' ? 'recipient_id' : 'sender_id';
     const filter = statuses?.length ? `AND status IN (${statuses.map(() => '?').join(',')})` : '';
     return this.all<Row>(
@@ -1059,7 +1110,13 @@ export class Store {
   }
 
   addTaskMessage(taskId: string, authorId: string, body: string): TaskMessage {
-    const msg: TaskMessage = { id: newId('tmg'), taskId, author: this.handleOf(authorId), body, createdAt: now() };
+    const msg: TaskMessage = {
+      id: newId('tmg'),
+      taskId,
+      author: this.handleOf(authorId),
+      body,
+      createdAt: now(),
+    };
     this.run(
       'INSERT INTO task_messages (id, task_id, author_id, body, created_at) VALUES (?, ?, ?, ?, ?)',
       msg.id,
@@ -1166,7 +1223,13 @@ export class Store {
     return r ? this.toApproval(r) : null;
   }
 
-  decideApproval(id: string, status: ApprovalStatus, decidedBy: string, note: string | null, body?: string): ApprovalRow {
+  decideApproval(
+    id: string,
+    status: ApprovalStatus,
+    decidedBy: string,
+    note: string | null,
+    body?: string,
+  ): ApprovalRow {
     this.run(
       'UPDATE approvals SET status = ?, decided_by = ?, decided_at = ?, note = ?, body = COALESCE(?, body) WHERE id = ?',
       status,
@@ -1225,7 +1288,9 @@ export class Store {
   }
 
   pushConfigsForTask(taskId: string): PushConfigRow[] {
-    return this.all('SELECT * FROM push_configs WHERE task_id = ? ORDER BY created_at', taskId).map(toPushConfig);
+    return this.all('SELECT * FROM push_configs WHERE task_id = ? ORDER BY created_at', taskId).map(
+      toPushConfig,
+    );
   }
 
   deletePushConfig(id: string): void {
@@ -1244,12 +1309,20 @@ export class Store {
   }
 
   consumeTelegramLink(codeHash: string): string | null {
-    const r = this.get<Row>('SELECT * FROM telegram_links WHERE code_hash = ? AND expires_at > ?', codeHash, now());
+    const r = this.get<Row>(
+      'SELECT * FROM telegram_links WHERE code_hash = ? AND expires_at > ?',
+      codeHash,
+      now(),
+    );
     this.run('DELETE FROM telegram_links WHERE code_hash = ?', codeHash);
     return r ? String(r.principal_id) : null;
   }
 
-  mapTelegramMessage(chatId: string, messageId: number, ref: { conversationId?: string; approvalId?: string }): void {
+  mapTelegramMessage(
+    chatId: string,
+    messageId: number,
+    ref: { conversationId?: string; approvalId?: string },
+  ): void {
     this.run(
       `INSERT OR REPLACE INTO telegram_messages (chat_id, message_id, conversation_id, approval_id) VALUES (?, ?, ?, ?)`,
       chatId,
@@ -1260,23 +1333,39 @@ export class Store {
   }
 
   telegramMessagesForApproval(approvalId: string): { chatId: string; messageId: number }[] {
-    return this.all<Row>('SELECT chat_id, message_id FROM telegram_messages WHERE approval_id = ?', approvalId).map((r) => ({
+    return this.all<Row>(
+      'SELECT chat_id, message_id FROM telegram_messages WHERE approval_id = ?',
+      approvalId,
+    ).map((r) => ({
       chatId: String(r.chat_id),
       messageId: Number(r.message_id),
     }));
   }
 
   telegramPrefs(principalId: string): { chatId: string | null; notify: 'all' | 'approvals' } {
-    const r = this.get<Row>('SELECT telegram_chat_id, telegram_notify FROM agents WHERE id = ?', principalId);
-    return { chatId: str(r?.telegram_chat_id), notify: r?.telegram_notify === 'approvals' ? 'approvals' : 'all' };
+    const r = this.get<Row>(
+      'SELECT telegram_chat_id, telegram_notify FROM agents WHERE id = ?',
+      principalId,
+    );
+    return {
+      chatId: str(r?.telegram_chat_id),
+      notify: r?.telegram_notify === 'approvals' ? 'approvals' : 'all',
+    };
   }
 
   setTelegramNotify(principalId: string, notify: 'all' | 'approvals'): void {
     this.run('UPDATE agents SET telegram_notify = ? WHERE id = ?', notify, principalId);
   }
 
-  telegramMessage(chatId: string, messageId: number): { conversationId: string | null; approvalId: string | null } | null {
-    const r = this.get('SELECT * FROM telegram_messages WHERE chat_id = ? AND message_id = ?', chatId, messageId);
+  telegramMessage(
+    chatId: string,
+    messageId: number,
+  ): { conversationId: string | null; approvalId: string | null } | null {
+    const r = this.get(
+      'SELECT * FROM telegram_messages WHERE chat_id = ? AND message_id = ?',
+      chatId,
+      messageId,
+    );
     return r ? { conversationId: str(r.conversation_id), approvalId: str(r.approval_id) } : null;
   }
 
@@ -1290,7 +1379,12 @@ export class Store {
    * Records an event for each principal. The per-principal log drives live streams, lets
    * clients resume with Last-Event-ID, and doubles as the audit trail.
    */
-  emit(principalIds: Iterable<string>, type: GatewayEventType, taskId: string | null, data: unknown): void {
+  emit(
+    principalIds: Iterable<string>,
+    type: GatewayEventType,
+    taskId: string | null,
+    data: unknown,
+  ): void {
     const createdAt = now();
     const json = JSON.stringify(data);
     for (const pid of new Set(principalIds)) {
@@ -1315,19 +1409,24 @@ export class Store {
   }
 
   eventsSince(principalId: string, seq: number, limit = 500): GatewayEvent[] {
-    return this.all('SELECT * FROM events WHERE agent_id = ? AND seq > ? ORDER BY seq LIMIT ?', principalId, seq, limit).map(
-      (r) => ({
-        seq: Number(r.seq),
-        type: String(r.type) as GatewayEventType,
-        taskId: str(r.task_id),
-        data: JSON.parse(String(r.data)),
-        createdAt: String(r.created_at),
-      }),
-    );
+    return this.all(
+      'SELECT * FROM events WHERE agent_id = ? AND seq > ? ORDER BY seq LIMIT ?',
+      principalId,
+      seq,
+      limit,
+    ).map((r) => ({
+      seq: Number(r.seq),
+      type: String(r.type) as GatewayEventType,
+      taskId: str(r.task_id),
+      data: JSON.parse(String(r.data)),
+      createdAt: String(r.created_at),
+    }));
   }
 
   latestEventSeq(principalId: string): number {
-    return Number(this.get<Row>('SELECT MAX(seq) AS seq FROM events WHERE agent_id = ?', principalId)?.seq ?? 0);
+    return Number(
+      this.get<Row>('SELECT MAX(seq) AS seq FROM events WHERE agent_id = ?', principalId)?.seq ?? 0,
+    );
   }
 }
 

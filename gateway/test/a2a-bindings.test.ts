@@ -23,6 +23,7 @@ beforeAll(async () => {
     grpcPort: 0,
     heartbeatSeconds: 1,
     allowPrivateWebhooks: true,
+    signInAttemptsPerMinute: 10_000,
   });
   url = server.url;
 });
@@ -49,11 +50,13 @@ describe('agent card', () => {
   it('advertises all three bindings with the agent as tenant', async () => {
     const bob = await agent('bob');
     const card = (await getAgentCard(bob.a2a, bob.token)) as any;
-    expect(card.supportedInterfaces.map((i: any) => [i.protocolBinding, i.tenant ?? null])).toEqual([
-      ['JSONRPC', null],
-      ['HTTP+JSON', bob.handle],
-      ['GRPC', bob.handle],
-    ]);
+    expect(card.supportedInterfaces.map((i: any) => [i.protocolBinding, i.tenant ?? null])).toEqual(
+      [
+        ['JSONRPC', null],
+        ['HTTP+JSON', bob.handle],
+        ['GRPC', bob.handle],
+      ],
+    );
     expect(card.supportedInterfaces[2].url).toBe(`127.0.0.1:${server.grpcPort}`);
     expect(card.capabilities.pushNotifications).toBe(true);
   });
@@ -73,11 +76,22 @@ describe.each([['HTTP+JSON'], ['GRPC']])('%s binding (official SDK client)', (bi
     expect((await bob.client.get(json.id)).task.body).toBe(`hello over ${binding}`);
 
     await bob.client.setStatus(json.id, 'completed', 'done!');
-    const got = Task.toJSON(await client.getTask({ tenant: '', id: json.id, historyLength: undefined }, auth)) as any;
+    const got = Task.toJSON(
+      await client.getTask({ tenant: '', id: json.id, historyLength: undefined }, auth),
+    ) as any;
     expect(got.artifacts[0].parts[0].text).toBe('done!');
 
     const listed = await client.listTasks(
-      { tenant: '', contextId: '', status: 0, pageSize: 10, pageToken: '', historyLength: undefined, statusTimestampAfter: undefined, includeArtifacts: true },
+      {
+        tenant: '',
+        contextId: '',
+        status: 0,
+        pageSize: 10,
+        pageToken: '',
+        historyLength: undefined,
+        statusTimestampAfter: undefined,
+        includeArtifacts: true,
+      },
       auth,
     );
     expect(listed.tasks.length).toBe(1);
@@ -85,11 +99,15 @@ describe.each([['HTTP+JSON'], ['GRPC']])('%s binding (official SDK client)', (bi
     // Streaming
     const events: any[] = [];
     const finishing = (async () => {
-      const t = await eventually(async () => (await bob.client.list('inbox', ['submitted'])).tasks[0], 'task');
+      const t = await eventually(
+        async () => (await bob.client.list('inbox', ['submitted'])).tasks[0],
+        'task',
+      );
       await bob.client.setStatus(t.id, 'working');
       await bob.client.setStatus(t.id, 'completed', 'streamed');
     })();
-    for await (const e of client.sendMessageStream(request('stream it'), auth)) events.push(StreamResponse.toJSON(e));
+    for await (const e of client.sendMessageStream(request('stream it'), auth))
+      events.push(StreamResponse.toJSON(e));
     await finishing;
     expect(events[0].task).toBeDefined();
     expect(events.at(-1).statusUpdate.status.state).toBe('TASK_STATE_COMPLETED');
@@ -101,7 +119,9 @@ describe.each([['HTTP+JSON'], ['GRPC']])('%s binding (official SDK client)', (bi
     const bob = await agent('bob');
     const client = await connectA2A(bob.a2a, bob.token, false, [binding]);
     await expect(client.sendMessage(request('no token'))).rejects.toThrow();
-    await expect(client.sendMessage(request('no access'), authOptions(alice.token))).rejects.toThrow(/Forbidden/);
+    await expect(
+      client.sendMessage(request('no access'), authOptions(alice.token)),
+    ).rejects.toThrow(/Forbidden/);
   });
 });
 
@@ -139,7 +159,9 @@ describe('push notifications', () => {
       token: 'secret-123',
     });
     expect(created.result).toMatchObject({ taskId: sent.task.id, url: hookUrl });
-    expect((await rpc('ListTaskPushNotificationConfigs', { taskId: sent.task.id })).result.configs).toHaveLength(1);
+    expect(
+      (await rpc('ListTaskPushNotificationConfigs', { taskId: sent.task.id })).result.configs,
+    ).toHaveLength(1);
 
     await bob.client.setStatus(sent.task.id, 'working');
     await bob.client.setStatus(sent.task.id, 'completed', 'finished after a long time');
@@ -147,10 +169,14 @@ describe('push notifications', () => {
     expect(final.headers['x-a2a-notification-token']).toBe('secret-123');
     expect(final.headers['content-type']).toBe('application/a2a+json');
     expect(final.body.task.artifacts[0].parts[0].text).toBe('finished after a long time');
-    expect(received.some((r) => r.body.statusUpdate?.status.state === 'TASK_STATE_WORKING')).toBe(true);
+    expect(received.some((r) => r.body.statusUpdate?.status.state === 'TASK_STATE_WORKING')).toBe(
+      true,
+    );
 
     await rpc('DeleteTaskPushNotificationConfig', { taskId: sent.task.id, id: created.result.id });
-    expect((await rpc('ListTaskPushNotificationConfigs', { taskId: sent.task.id })).result.configs).toHaveLength(0);
+    expect(
+      (await rpc('ListTaskPushNotificationConfigs', { taskId: sent.task.id })).result.configs,
+    ).toHaveLength(0);
     hook.close();
   });
 });
@@ -167,7 +193,13 @@ describe('A2A meets the conversation system', () => {
     const sent = await sendA2A(bossAgent.a2a, 'please read this', {
       token: caller.token,
       wait: false,
-      files: [{ filename: 'notes.txt', mediaType: 'text/plain', data: Buffer.from('hi there').toString('base64') }],
+      files: [
+        {
+          filename: 'notes.txt',
+          mediaType: 'text/plain',
+          data: Buffer.from('hi there').toString('base64'),
+        },
+      ],
     });
     if (!('task' in sent)) throw new Error('expected task');
     expect(sent.task.status.state).toBe('TASK_STATE_SUBMITTED');
@@ -187,11 +219,20 @@ describe('A2A meets the conversation system', () => {
     const alice = await agent('alice');
     const bob = await agent('bob');
     await pair(alice, bob);
-    const { conversation } = await alice.client.createConversation({ title: 'shared', members: [bob.handle] });
-    const sent = await sendA2A(bob.a2a, 'in the thread', { token: alice.token, wait: false, contextId: conversation.id });
+    const { conversation } = await alice.client.createConversation({
+      title: 'shared',
+      members: [bob.handle],
+    });
+    const sent = await sendA2A(bob.a2a, 'in the thread', {
+      token: alice.token,
+      wait: false,
+      contextId: conversation.id,
+    });
     if (!('task' in sent)) throw new Error('expected task');
     expect(sent.task.contextId).toBe(conversation.id);
-    expect((await alice.client.messages(conversation.id)).messages.at(-1)?.body).toBe('in the thread');
+    expect((await alice.client.messages(conversation.id)).messages.at(-1)?.body).toBe(
+      'in the thread',
+    );
   });
 
   it('waits past the old 5-minute cap (no fixed limit) and returns when the task settles', async () => {
@@ -201,7 +242,10 @@ describe('A2A meets the conversation system', () => {
     const [sent] = await Promise.all([
       sendA2A(bob.a2a, 'take your time', { token: alice.token }),
       (async () => {
-        const t = await eventually(async () => (await bob.client.list('inbox', ['submitted'])).tasks[0], 'task');
+        const t = await eventually(
+          async () => (await bob.client.list('inbox', ['submitted'])).tasks[0],
+          'task',
+        );
         await new Promise((r) => setTimeout(r, 1500));
         await bob.client.setStatus(t.id, 'completed', 'worth the wait');
       })(),

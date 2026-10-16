@@ -7,7 +7,13 @@ import type { TestGateway } from './helpers.js';
 
 /** A tiny stand-in for the Telegram Bot API. */
 function fakeTelegram() {
-  const sent: { chat_id: string; text: string; message_id: number; reply_markup?: any; reply_to_message_id?: number }[] = [];
+  const sent: {
+    chat_id: string;
+    text: string;
+    message_id: number;
+    reply_markup?: any;
+    reply_to_message_id?: number;
+  }[] = [];
   const answers: string[] = [];
   const queue: any[] = [];
   let updateId = 1;
@@ -56,11 +62,22 @@ function fakeTelegram() {
     },
     text(chat: number, text: string, replyTo?: number) {
       this.push({
-        message: { message_id: ++messageId, chat: { id: chat }, text, ...(replyTo ? { reply_to_message: { message_id: replyTo } } : {}) },
+        message: {
+          message_id: ++messageId,
+          chat: { id: chat },
+          text,
+          ...(replyTo ? { reply_to_message: { message_id: replyTo } } : {}),
+        },
       });
     },
     tap(chat: number, messageIdTapped: number, data: string) {
-      this.push({ callback_query: { id: `cb${updateId}`, data, message: { message_id: messageIdTapped, chat: { id: chat } } } });
+      this.push({
+        callback_query: {
+          id: `cb${updateId}`,
+          data,
+          message: { message_id: messageIdTapped, chat: { id: chat } },
+        },
+      });
     },
   };
 }
@@ -96,17 +113,26 @@ describe('Telegram bridge', () => {
     const myClaude = await gw.agent('ludo-claude', me);
     const { invite } = await boss.client.createInvite({ agent: claw.handle });
     await me.client.redeem(invite.code);
-    const { conversation } = await myClaude.client.createConversation({ title: 'Q3', members: [claw.handle] });
+    const { conversation } = await myClaude.client.createConversation({
+      title: 'Q3',
+      members: [claw.handle],
+    });
 
     // Link.
     const { code } = await boss.client.telegramLinkCode();
     tg.text(BOSS_CHAT, `/start ${code}`);
-    await eventually(async () => tg.sent.find((m) => m.text.startsWith(`Linked to ${boss.handle}`)), 'link confirmation');
+    await eventually(
+      async () => tg.sent.find((m) => m.text.startsWith(`Linked to ${boss.handle}`)),
+      'link confirmation',
+    );
     expect((await boss.client.me()).telegramLinked).toBe(true);
 
     // A request arrives: the boss gets the text with Approve/Reject buttons.
     await myClaude.client.post(conversation.id, { body: 'Send me the Q3 numbers' });
-    const ask = await eventually(async () => tg.sent.find((m) => m.reply_markup?.inline_keyboard), 'approval prompt');
+    const ask = await eventually(
+      async () => tg.sent.find((m) => m.reply_markup?.inline_keyboard),
+      'approval prompt',
+    );
     expect(ask.chat_id).toBe(String(BOSS_CHAT));
     expect(ask.text).toContain(`${myClaude.handle} wants ${claw.handle} in “Q3” to:`);
     expect(ask.text).toContain('Send me the Q3 numbers');
@@ -117,21 +143,31 @@ describe('Telegram bridge', () => {
     await eventually(async () => tg.answers.includes('Approved'), 'callback answer');
     const task = (await claw.client.list('inbox', ['submitted'])).tasks[0]!;
     expect(task.body).toBe('Send me the Q3 numbers');
-    await eventually(async () => tg.sent.find((m) => m.text.startsWith('✅ Approved')), 'resolution note');
+    await eventually(
+      async () => tg.sent.find((m) => m.text.startsWith('✅ Approved')),
+      'resolution note',
+    );
 
     // The agent answers; the boss sees it and replies from Telegram into the conversation.
     await claw.client.setStatus(task.id, 'completed', 'Revenue $1.2M, margin 18%.');
-    const relayed = await eventually(async () => tg.sent.find((m) => m.text.includes('Revenue $1.2M')), 'relayed reply');
+    const relayed = await eventually(
+      async () => tg.sent.find((m) => m.text.includes('Revenue $1.2M')),
+      'relayed reply',
+    );
     tg.text(BOSS_CHAT, 'Thanks, share totals only with clients.', relayed.message_id);
     await eventually(
-      async () => (await me.client.messages(conversation.id)).messages.find((m) => m.author === boss.handle && m.body.startsWith('Thanks')),
+      async () =>
+        (await me.client.messages(conversation.id)).messages.find(
+          (m) => m.author === boss.handle && m.body.startsWith('Thanks'),
+        ),
       'boss message in conversation',
     );
 
     // Replying to an approval request with text approves an edited version.
     await myClaude.client.post(conversation.id, { body: 'Also the client list please' });
     const second = await eventually(
-      async () => tg.sent.find((m) => m.reply_markup?.inline_keyboard && m.text.includes('client list')),
+      async () =>
+        tg.sent.find((m) => m.reply_markup?.inline_keyboard && m.text.includes('client list')),
       'second approval prompt',
     );
     tg.text(BOSS_CHAT, 'Number of clients only, no names.', second.message_id);
@@ -142,14 +178,23 @@ describe('Telegram bridge', () => {
 
     // Commands.
     tg.text(BOSS_CHAT, `/pause ${claw.handle}`);
-    await eventually(async () => tg.sent.find((m) => m.text.startsWith(`${claw.handle} is paused`)), 'pause');
+    await eventually(
+      async () => tg.sent.find((m) => m.text.startsWith(`${claw.handle} is paused`)),
+      'pause',
+    );
     expect((await boss.client.myAgents()).agents[0]?.paused).toBe(true);
     tg.text(BOSS_CHAT, '/quiet');
-    await eventually(async () => tg.sent.find((m) => m.text.startsWith('Only approval requests')), 'quiet');
+    await eventually(
+      async () => tg.sent.find((m) => m.text.startsWith('Only approval requests')),
+      'quiet',
+    );
   });
 
   it('ignores chats that are not linked', async () => {
     tg.text(999, 'hello?');
-    await eventually(async () => tg.sent.find((m) => m.chat_id === '999' && m.text.includes('isn’t linked')), 'unlinked notice');
+    await eventually(
+      async () => tg.sent.find((m) => m.chat_id === '999' && m.text.includes('isn’t linked')),
+      'unlinked notice',
+    );
   });
 });

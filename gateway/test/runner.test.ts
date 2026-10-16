@@ -31,7 +31,15 @@ describe('runner with an OpenClaw agent', () => {
       {
         agents: {
           openclaw: {
-            message: ['node', fakeOpenClaw, '--session-id', 'agw-{conversation}', '--message-file', '{promptFile}', '--json'],
+            message: [
+              'node',
+              fakeOpenClaw,
+              '--session-id',
+              'agw-{conversation}',
+              '--message-file',
+              '{promptFile}',
+              '--json',
+            ],
             output: 'openclaw-json',
           },
         },
@@ -45,10 +53,17 @@ describe('runner with an OpenClaw agent', () => {
 
     await me.client.post(conversation.id, {
       body: `@${claw.handle} what do you make of this?`,
-      attachments: [{ filename: 'plan.txt', mediaType: 'text/plain', data: Buffer.from('launch in May').toString('base64') }],
+      attachments: [
+        {
+          filename: 'plan.txt',
+          mediaType: 'text/plain',
+          data: Buffer.from('launch in May').toString('base64'),
+        },
+      ],
     });
     const reply = await eventually(
-      async () => (await me.client.messages(conversation.id)).messages.find((m) => m.kind === 'reply'),
+      async () =>
+        (await me.client.messages(conversation.id)).messages.find((m) => m.kind === 'reply'),
       'OpenClaw reply',
     );
     ac.abort();
@@ -58,11 +73,18 @@ describe('runner with an OpenClaw agent', () => {
   });
 
   it('parses OpenClaw JSON output', () => {
-    expect(parseOutput(JSON.stringify({ payloads: [{ text: 'a' }, { text: 'b' }] }), 'openclaw-json')).toBe('a\n\nb');
-    expect(parseOutput(JSON.stringify({ result: { payloads: [{ text: 'gw' }] } }), 'openclaw-json')).toBe('gw');
+    expect(
+      parseOutput(JSON.stringify({ payloads: [{ text: 'a' }, { text: 'b' }] }), 'openclaw-json'),
+    ).toBe('a\n\nb');
+    expect(
+      parseOutput(JSON.stringify({ result: { payloads: [{ text: 'gw' }] } }), 'openclaw-json'),
+    ).toBe('gw');
     expect(parseOutput('not json', 'openclaw-json')).toBe('not json');
-    expect(parseOutput(JSON.stringify({ ok: false, error: { message: 'gateway down' } }), 'openclaw-json')).toMatch(
-      /^NEEDS_INPUT: OpenClaw reported an error: gateway down/,
-    );
+    expect(
+      parseOutput(
+        JSON.stringify({ ok: false, error: { message: 'gateway down' } }),
+        'openclaw-json',
+      ),
+    ).toMatch(/^NEEDS_INPUT: OpenClaw reported an error: gateway down/);
   });
 });

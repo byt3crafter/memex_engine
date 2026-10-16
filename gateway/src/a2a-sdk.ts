@@ -81,7 +81,8 @@ export class GatewayRequestHandler implements A2ARequestHandler {
 
   private who(params: { tenant?: string }, ctx: ServerCallContext) {
     const user = ctx.user;
-    if (!(user instanceof GatewayUser)) throw new RequestMalformedError('Unauthorized: gateway bearer token required');
+    if (!(user instanceof GatewayUser))
+      throw new RequestMalformedError('Unauthorized: gateway bearer token required');
     try {
       return { caller: user.principal, target: this.svc.agent(params.tenant || ctx.tenant) };
     } catch (err) {
@@ -136,7 +137,9 @@ export class GatewayRequestHandler implements A2ARequestHandler {
 
   async *sendMessageStream(params: SendMessageRequest, ctx: ServerCallContext) {
     const { caller, target } = this.who(params, ctx);
-    const { taskId, historyLength } = this.call(() => this.svc.begin(caller, target, SendMessageRequest.toJSON(params)));
+    const { taskId, historyLength } = this.call(() =>
+      this.svc.begin(caller, target, SendMessageRequest.toJSON(params)),
+    );
     for await (const event of this.svc.events(caller, taskId, historyLength)) {
       if (event) yield StreamResponse.fromJSON(event);
     }
@@ -144,7 +147,9 @@ export class GatewayRequestHandler implements A2ARequestHandler {
 
   async *resubscribe(params: SubscribeToTaskRequest, ctx: ServerCallContext) {
     const { caller, target } = this.who(params, ctx);
-    const taskId = this.call(() => this.svc.subscribeCheck(caller, target, SubscribeToTaskRequest.toJSON(params)));
+    const taskId = this.call(() =>
+      this.svc.subscribeCheck(caller, target, SubscribeToTaskRequest.toJSON(params)),
+    );
     for await (const event of this.svc.events(caller, taskId, undefined)) {
       if (event) yield StreamResponse.fromJSON(event);
     }
@@ -152,43 +157,69 @@ export class GatewayRequestHandler implements A2ARequestHandler {
 
   async getTask(params: GetTaskRequest, ctx: ServerCallContext) {
     const { caller, target } = this.who(params, ctx);
-    return Task.fromJSON(this.call(() => this.svc.getTask(caller, target, GetTaskRequest.toJSON(params))));
+    return Task.fromJSON(
+      this.call(() => this.svc.getTask(caller, target, GetTaskRequest.toJSON(params))),
+    );
   }
 
   async listTasks(params: ListTasksRequest, ctx: ServerCallContext) {
     const { caller, target } = this.who(params, ctx);
-    return ListTasksResponse.fromJSON(this.call(() => this.svc.listTasks(caller, target, ListTasksRequest.toJSON(params))));
+    return ListTasksResponse.fromJSON(
+      this.call(() => this.svc.listTasks(caller, target, ListTasksRequest.toJSON(params))),
+    );
   }
 
   async cancelTask(params: CancelTaskRequest, ctx: ServerCallContext) {
     const { caller, target } = this.who(params, ctx);
-    return Task.fromJSON(this.call(() => this.svc.cancel(caller, target, CancelTaskRequest.toJSON(params))));
-  }
-
-  async createTaskPushNotificationConfig(params: TaskPushNotificationConfig, ctx: ServerCallContext) {
-    const { caller, target } = this.who(params, ctx);
-    return TaskPushNotificationConfig.fromJSON(
-      this.call(() => this.svc.createPush(caller, target, TaskPushNotificationConfig.toJSON(params))),
+    return Task.fromJSON(
+      this.call(() => this.svc.cancel(caller, target, CancelTaskRequest.toJSON(params))),
     );
   }
 
-  async getTaskPushNotificationConfig(params: GetTaskPushNotificationConfigRequest, ctx: ServerCallContext) {
+  async createTaskPushNotificationConfig(
+    params: TaskPushNotificationConfig,
+    ctx: ServerCallContext,
+  ) {
     const { caller, target } = this.who(params, ctx);
     return TaskPushNotificationConfig.fromJSON(
-      this.call(() => this.svc.getPush(caller, target, GetTaskPushNotificationConfigRequest.toJSON(params))),
+      this.call(() =>
+        this.svc.createPush(caller, target, TaskPushNotificationConfig.toJSON(params)),
+      ),
     );
   }
 
-  async listTaskPushNotificationConfigs(params: ListTaskPushNotificationConfigsRequest, ctx: ServerCallContext) {
+  async getTaskPushNotificationConfig(
+    params: GetTaskPushNotificationConfigRequest,
+    ctx: ServerCallContext,
+  ) {
+    const { caller, target } = this.who(params, ctx);
+    return TaskPushNotificationConfig.fromJSON(
+      this.call(() =>
+        this.svc.getPush(caller, target, GetTaskPushNotificationConfigRequest.toJSON(params)),
+      ),
+    );
+  }
+
+  async listTaskPushNotificationConfigs(
+    params: ListTaskPushNotificationConfigsRequest,
+    ctx: ServerCallContext,
+  ) {
     const { caller, target } = this.who(params, ctx);
     return ListTaskPushNotificationConfigsResponse.fromJSON(
-      this.call(() => this.svc.listPush(caller, target, ListTaskPushNotificationConfigsRequest.toJSON(params))),
+      this.call(() =>
+        this.svc.listPush(caller, target, ListTaskPushNotificationConfigsRequest.toJSON(params)),
+      ),
     );
   }
 
-  async deleteTaskPushNotificationConfig(params: DeleteTaskPushNotificationConfigRequest, ctx: ServerCallContext) {
+  async deleteTaskPushNotificationConfig(
+    params: DeleteTaskPushNotificationConfigRequest,
+    ctx: ServerCallContext,
+  ) {
     const { caller, target } = this.who(params, ctx);
-    this.call(() => this.svc.deletePush(caller, target, DeleteTaskPushNotificationConfigRequest.toJSON(params)));
+    this.call(() =>
+      this.svc.deletePush(caller, target, DeleteTaskPushNotificationConfigRequest.toJSON(params)),
+    );
   }
 }
 
@@ -210,7 +241,13 @@ export function createRestBinding(svc: A2AService) {
         res
           .status(401)
           .set('WWW-Authenticate', 'Bearer')
-          .json({ error: { code: 401, status: 'UNAUTHENTICATED', message: 'gateway bearer token required' } });
+          .json({
+            error: {
+              code: 401,
+              status: 'UNAUTHENTICATED',
+              message: 'gateway bearer token required',
+            },
+          });
         return;
       }
       (req as Request & { agw?: Principal }).agw = principal;
@@ -247,7 +284,9 @@ export async function startGrpcBinding(
       requestHandler: new GatewayRequestHandler(svc),
       userBuilder: async (call) => {
         const auth = call.metadata.get('authorization')[0];
-        const p = svc.gateway.authenticate(bearer(typeof auth === 'string' ? auth : auth?.toString()));
+        const p = svc.gateway.authenticate(
+          bearer(typeof auth === 'string' ? auth : auth?.toString()),
+        );
         return p ? new GatewayUser(p) : unauthenticated;
       },
     }),
@@ -255,11 +294,16 @@ export async function startGrpcBinding(
   const creds =
     opts.tlsCertFile && opts.tlsKeyFile
       ? grpc.ServerCredentials.createSsl(null, [
-          { cert_chain: readFileSync(opts.tlsCertFile), private_key: readFileSync(opts.tlsKeyFile) },
+          {
+            cert_chain: readFileSync(opts.tlsCertFile),
+            private_key: readFileSync(opts.tlsKeyFile),
+          },
         ])
       : grpc.ServerCredentials.createInsecure();
   const port = await new Promise<number>((resolve, reject) =>
-    server.bindAsync(`${opts.host}:${opts.port}`, creds, (err, p) => (err ? reject(err) : resolve(p))),
+    server.bindAsync(`${opts.host}:${opts.port}`, creds, (err, p) =>
+      err ? reject(err) : resolve(p),
+    ),
   );
   return {
     port,

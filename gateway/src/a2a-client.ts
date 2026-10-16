@@ -144,7 +144,11 @@ export async function sendA2A(
       role: 'ROLE_USER',
       parts: [
         { text },
-        ...(opts.files ?? []).map((f) => ({ raw: f.data, filename: f.filename, mediaType: f.mediaType })),
+        ...(opts.files ?? []).map((f) => ({
+          raw: f.data,
+          filename: f.filename,
+          mediaType: f.mediaType,
+        })),
       ],
       ...(opts.taskId ? { taskId: opts.taskId } : {}),
       ...(opts.contextId ? { contextId: opts.contextId } : {}),
