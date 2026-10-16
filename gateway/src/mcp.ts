@@ -29,7 +29,7 @@ export function createMcpServer(client: GatewayClient): McpServer {
     { description: 'Show this agent’s gateway handle and the channels it can send or receive on.' },
     () =>
       run(async () => {
-        const { agent, channels } = await client.me();
+        const { principal: agent, channels } = await client.me();
         const lines = channels.map(
           (c) => `  ${c.id}: ${c.sender} -> ${c.recipient} [${c.scopes.join(',')}]`,
         );

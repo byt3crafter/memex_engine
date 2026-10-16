@@ -1,236 +1,431 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
+import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
 import { mountA2A } from './a2a.js';
-import { newInviteCode, newToken, normalizeInviteCode, sha256 } from './auth.js';
-import { authenticate, Hub, openTask, postMessage, RateLimiter } from './core.js';
+import { RateLimiter } from './core.js';
+import { Gateway, GatewayError } from './gateway.js';
 import type { Store } from './store.js';
-import { SCOPES, TERMINAL_STATUSES } from './types.js';
-import type { Agent, GatewayEvent, TaskStatus } from './types.js';
+import { APPROVAL_MODES, SCOPES } from './types.js';
+import type { GatewayEvent, Principal, TaskStatus } from './types.js';
+import { mountWebApp } from './web.js';
 
 export interface ServerOptions {
-  /** When set, `POST /v1/agents` requires this value in the `x-registration-key` header. */
+  /** When set, creating people and unowned agents requires this in `x-registration-key`. */
   registrationKey?: string | undefined;
-  /** Requests per agent per minute. */
+  /** Requests per principal per minute. */
   rateLimitPerMinute?: number;
   /** Seconds between keep-alive pings on idle event streams. */
   heartbeatSeconds?: number;
   /** Public base URL used in A2A agent cards. Defaults to the request's origin. */
   publicUrl?: string | undefined;
-  /** How long a blocking A2A `SendMessage` waits for the task to finish. Default 300s. */
-  a2aBlockingTimeoutSeconds?: number;
+  /** Cap on how long a blocking A2A `SendMessage` waits. Default: as long as the caller stays connected. */
+  a2aBlockingTimeoutSeconds?: number | undefined;
+  /** Allow A2A push notifications to private/loopback addresses (tests, local setups). */
+  allowPrivateWebhooks?: boolean;
+  /** Telegram bot username, shown when linking. */
+  telegramBot?: string | undefined;
+  /** Secure cookies (set when served over HTTPS). */
+  secureCookies?: boolean;
 }
 
-const MAX_BODY = 64 * 1024;
-const HANDLE = /^[a-z0-9][a-z0-9._-]{1,62}$/;
+const SESSION_COOKIE = 'agw_session';
+const MAX_TEXT = 64 * 1024;
 
-const registerSchema = z.object({
-  handle: z.string().regex(HANDLE, 'handle must be 2-63 chars of a-z, 0-9, . _ -'),
-  description: z.string().max(500).optional(),
+const scopes = z.array(z.enum(SCOPES as [string, ...string[]])).min(1);
+const approval = z.enum(APPROVAL_MODES as [string, ...string[]]);
+const attachment = z.object({
+  filename: z.string().min(1).max(200),
+  mediaType: z.string().max(200).default('application/octet-stream'),
+  data: z.string(),
 });
-const inviteSchema = z.object({
-  scopes: z
-    .array(z.enum(SCOPES as [string, ...string[]]))
-    .min(1)
-    .default(['message']),
-  mutual: z.boolean().default(false),
-  ttlSeconds: z
-    .number()
-    .int()
-    .min(60)
-    .max(7 * 24 * 3600)
-    .default(24 * 3600),
-  maxUses: z.number().int().min(1).max(100).default(1),
-});
-const sendSchema = z.object({
-  to: z.string(),
-  kind: z.enum(['message', 'task']).default('message'),
-  project: z.string().max(200).optional(),
-  title: z.string().max(200).optional(),
-  body: z.string().min(1).max(MAX_BODY),
-});
-const statusSchema = z.object({
-  status: z.enum(['working', 'input_required', 'completed', 'failed', 'rejected', 'canceled']),
-  result: z.string().max(MAX_BODY).optional(),
-});
-const messageSchema = z.object({ body: z.string().min(1).max(MAX_BODY) });
 
-/** Status changes the recipient may make, keyed by current status. */
-const RECIPIENT_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
-  submitted: ['working', 'input_required', 'completed', 'failed', 'rejected'],
-  working: ['input_required', 'completed', 'failed'],
-  input_required: ['working', 'completed', 'failed'],
-  completed: [],
-  failed: [],
-  rejected: [],
-  canceled: [],
+const schemas = {
+  person: z.object({
+    handle: z.string(),
+    password: z.string().min(8).max(200),
+    displayName: z.string().max(100).optional(),
+  }),
+  login: z.object({ handle: z.string(), password: z.string() }),
+  agent: z.object({ handle: z.string(), description: z.string().max(500).optional() }),
+  agentPatch: z.object({
+    description: z.string().max(500).nullable().optional(),
+    discoverable: z.boolean().optional(),
+    paused: z.boolean().optional(),
+  }),
+  invite: z.object({
+    agent: z.string().optional(),
+    scopes: scopes.optional(),
+    mutual: z.boolean().optional(),
+    approval: approval.optional(),
+    includeAgents: z.boolean().optional(),
+    ttlSeconds: z
+      .number()
+      .int()
+      .min(60)
+      .max(30 * 24 * 3600)
+      .optional(),
+    maxUses: z.number().int().min(1).max(100).optional(),
+    grantTtlSeconds: z.number().int().min(60).nullable().optional(),
+  }),
+  redeem: z.object({ code: z.string().min(4).max(64) }),
+  channelPatch: z.object({
+    scopes: scopes.optional(),
+    approval: approval.optional(),
+    includeAgents: z.boolean().optional(),
+    expiresAt: z.string().nullable().optional(),
+  }),
+  send: z.object({
+    to: z.string(),
+    kind: z.enum(['message', 'task']).default('message'),
+    project: z.string().max(200).optional(),
+    title: z.string().max(200).optional(),
+    body: z.string().min(1).max(MAX_TEXT),
+    attachments: z.array(attachment).max(10).optional(),
+  }),
+  status: z.object({
+    status: z.enum(['working', 'input_required', 'completed', 'failed', 'rejected', 'canceled']),
+    result: z.string().max(MAX_TEXT).optional(),
+  }),
+  threadMessage: z.object({ body: z.string().min(1).max(MAX_TEXT) }),
+  conversation: z.object({
+    title: z.string().max(200).nullable().optional(),
+    members: z.array(z.string()).max(50).optional(),
+  }),
+  conversationPatch: z.object({ title: z.string().max(200).nullable() }),
+  post: z.object({
+    body: z.string().max(MAX_TEXT).default(''),
+    to: z.array(z.string()).max(20).optional(),
+    kind: z.enum(['message', 'task']).optional(),
+    project: z.string().max(200).nullable().optional(),
+    title: z.string().max(200).nullable().optional(),
+    replyTo: z.string().nullable().optional(),
+    attachments: z.array(attachment).max(10).optional(),
+  }),
+  member: z.object({ handle: z.string() }),
+  invitation: z.object({ accept: z.boolean() }),
+  read: z.object({ seq: z.number().int().min(0) }),
+  decision: z.object({
+    decision: z.enum(['approve', 'reject']),
+    body: z.string().max(MAX_TEXT).optional(),
+    note: z.string().max(2000).optional(),
+  }),
 };
 
-type Env = { Variables: { agent: Agent } };
+type Env = { Variables: { me: Principal } };
 
 export function createApp(store: Store, opts: ServerOptions = {}) {
+  const gateway = new Gateway(store);
   const app = new Hono<Env>();
-  const hub = new Hub(store);
-  const limiter = new RateLimiter(opts.rateLimitPerMinute ?? 240);
+  const limiter = new RateLimiter(opts.rateLimitPerMinute ?? 600);
 
-  const bad = (
-    c: Context,
-    status: 400 | 401 | 403 | 404 | 409 | 429,
-    error: string,
-    detail?: unknown,
-  ) => c.json({ error, ...(detail === undefined ? {} : { detail }) }, status);
+  app.onError((err, c) => {
+    if (err instanceof GatewayError) {
+      return c.json(
+        {
+          error: err.code,
+          message: err.message,
+          ...(err.detail === undefined ? {} : { detail: err.detail }),
+        },
+        err.status,
+      );
+    }
+    console.error(err);
+    return c.json({ error: 'internal_error' }, 500);
+  });
 
-  async function parse<T>(
-    c: Context,
-    schema: z.ZodType<T>,
-  ): Promise<{ ok: true; data: T } | { ok: false; res: Response }> {
+  async function body<T>(c: Context, schema: z.ZodType<T>): Promise<T> {
     let json: unknown;
     try {
       json = await c.req.json();
     } catch {
-      return { ok: false, res: bad(c, 400, 'invalid_json') };
+      throw new GatewayError(400, 'invalid_json');
     }
     const out = schema.safeParse(json);
-    if (!out.success)
-      return { ok: false, res: bad(c, 400, 'invalid_request', z.treeifyError(out.error)) };
-    return { ok: true, data: out.data };
+    if (!out.success) {
+      throw new GatewayError(400, 'invalid_request', 'invalid request', z.treeifyError(out.error));
+    }
+    return out.data;
   }
 
-  app.get('/', (c) => c.json({ name: 'agent-gateway', version: '0.1.0', docs: 'see README.md' }));
-  app.get('/health', (c) => c.json({ ok: true }));
-
-  app.post('/v1/agents', async (c) => {
+  const requireRegistrationKey = (c: Context) => {
     if (opts.registrationKey && c.req.header('x-registration-key') !== opts.registrationKey) {
-      return bad(c, 401, 'registration_key_required');
+      throw new GatewayError(401, 'registration_key_required');
     }
-    const p = await parse(c, registerSchema);
-    if (!p.ok) return p.res;
-    if (store.agentByHandle(p.data.handle)) return bad(c, 409, 'handle_taken');
-    const token = newToken();
-    const agent = store.createAgent(p.data.handle, sha256(token), p.data.description ?? null);
-    // The token is shown once; only its hash is stored.
-    return c.json({ agent, token }, 201);
+  };
+
+  const bearer = (c: Context) => {
+    const h = c.req.header('authorization') ?? '';
+    return h.startsWith('Bearer ') ? h.slice(7) : null;
+  };
+
+  const startWebSession = (c: Context, token: string, expiresAt: string) => {
+    setCookie(c, SESSION_COOKIE, token, {
+      httpOnly: true,
+      sameSite: 'Lax',
+      secure: Boolean(opts.secureCookies),
+      path: '/',
+      expires: new Date(expiresAt),
+    });
+  };
+
+  app.get('/health', (c) => c.json({ ok: true }));
+  app.get('/api', (c) =>
+    c.json({ name: 'agent-gateway', version: '0.3.0', app: '/app', docs: 'see README.md' }),
+  );
+
+  // ---- sign-up / sign-in (no auth) ----
+
+  app.post('/v1/people', async (c) => {
+    requireRegistrationKey(c);
+    const out = gateway.registerPerson(await body(c, schemas.person));
+    if (c.req.query('cookie')) startWebSession(c, out.token, out.expiresAt);
+    return c.json(out, 201);
   });
 
-  // Everything below needs a bearer token.
+  app.post('/v1/sessions', async (c) => {
+    const b = await body(c, schemas.login);
+    const out = gateway.login(b.handle, b.password);
+    if (c.req.query('cookie')) startWebSession(c, out.token, out.expiresAt);
+    return c.json(out, 201);
+  });
+
+  // Unowned agents register themselves; people create owned agents (authenticated, below).
+  app.post('/v1/agents', async (c, next) => {
+    if (bearer(c) || getCookie(c, SESSION_COOKIE)) return next();
+    requireRegistrationKey(c);
+    return c.json(gateway.registerAgent(await body(c, schemas.agent)), 201);
+  });
+
+  // ---- everything below needs a token (agents) or a session (people) ----
+
   app.use('/v1/*', async (c, next) => {
-    const agent = authenticate(store, c.req.header('authorization'));
-    if (!agent) return bad(c, 401, 'unauthorized');
-    if (!limiter.allow(agent.id)) return bad(c, 429, 'rate_limited');
-    c.set('agent', agent);
+    const cookie = getCookie(c, SESSION_COOKIE);
+    const me = gateway.authenticate(bearer(c) ?? cookie ?? c.req.query('access_token'));
+    if (!me) throw new GatewayError(401, 'unauthorized');
+    // Cookie-authenticated writes must come from our own pages: browsers won't send a
+    // custom header cross-site without CORS, which this server never grants.
+    const viaCookie = !bearer(c) && Boolean(cookie);
+    if (viaCookie && c.req.method !== 'GET' && c.req.header('x-requested-with') !== 'agw') {
+      throw new GatewayError(403, 'csrf', 'missing X-Requested-With header');
+    }
+    if (!limiter.allow(me.id)) throw new GatewayError(429, 'rate_limited');
+    c.set('me', me);
     await next();
   });
 
-  app.get('/v1/me', (c) => {
-    const me = c.get('agent');
-    return c.json({ agent: me, channels: store.channelsFor(me.id) });
+  app.delete('/v1/sessions', (c) => {
+    const token = bearer(c) ?? getCookie(c, SESSION_COOKIE);
+    if (token) gateway.logout(token);
+    deleteCookie(c, SESSION_COOKIE, { path: '/' });
+    return c.json({ ok: true });
   });
 
+  app.get('/v1/me', (c) => c.json(gateway.me(c.get('me'))));
+
+  // ---- agents ----
+
+  app.post('/v1/agents', async (c) => {
+    const b = await body(c, schemas.agent);
+    return c.json(gateway.registerAgent({ ...b, owner: c.get('me') }), 201);
+  });
+
+  app.get('/v1/agents', (c) => c.json({ agents: gateway.me(c.get('me')).agents }));
+
+  app.patch('/v1/agents/:handle', async (c) => {
+    const b = await body(c, schemas.agentPatch);
+    return c.json({ agent: gateway.updateAgent(c.get('me'), c.req.param('handle'), b) });
+  });
+
+  app.post('/v1/agents/:handle/token', (c) =>
+    c.json(gateway.rotateAgentToken(c.get('me'), c.req.param('handle'))),
+  );
+
+  // ---- sharing ----
+
   app.post('/v1/invites', async (c) => {
-    const p = await parse(c, inviteSchema);
-    if (!p.ok) return p.res;
-    const { scopes, mutual, ttlSeconds, maxUses } = p.data;
-    const invite = store.createInvite(
-      newInviteCode(),
-      c.get('agent').id,
-      scopes as never,
-      mutual,
-      ttlSeconds,
-      maxUses,
-    );
+    const invite = gateway.createInvite(c.get('me'), (await body(c, schemas.invite)) as never);
     return c.json({ invite }, 201);
   });
 
   app.post('/v1/invites/redeem', async (c) => {
-    const p = await parse(c, z.object({ code: z.string().min(4).max(64) }));
-    if (!p.ok) return p.res;
-    const out = store.redeemInvite(normalizeInviteCode(p.data.code), c.get('agent').id);
-    if ('error' in out) return bad(c, out.error === 'invalid_code' ? 404 : 409, out.error);
-    return c.json(out, 201);
+    const b = await body(c, schemas.redeem);
+    return c.json(gateway.redeemInvite(c.get('me'), b.code), 201);
   });
 
-  app.get('/v1/channels', (c) => c.json({ channels: store.channelsFor(c.get('agent').id) }));
+  app.get('/v1/channels', (c) => c.json({ channels: gateway.channelsFor(c.get('me')) }));
 
-  app.delete('/v1/channels/:id', (c) => {
-    const ch = store.revokeChannel(c.req.param('id'), c.get('agent').id);
-    return ch ? c.json({ channel: ch }) : bad(c, 404, 'not_found');
+  app.patch('/v1/channels/:id', async (c) => {
+    const b = await body(c, schemas.channelPatch);
+    return c.json({ channel: gateway.updateChannel(c.get('me'), c.req.param('id'), b as never) });
   });
+
+  app.delete('/v1/channels/:id', (c) =>
+    c.json({ channel: gateway.revokeChannel(c.get('me'), c.req.param('id')) }),
+  );
+
+  // ---- tasks (work for agents) ----
 
   app.post('/v1/tasks', async (c) => {
-    const p = await parse(c, sendSchema);
-    if (!p.ok) return p.res;
-    const out = openTask(store, c.get('agent'), store.agentByHandle(p.data.to), {
-      kind: p.data.kind,
-      project: p.data.project ?? null,
-      title: p.data.title ?? null,
-      body: p.data.body,
+    const b = await body(c, schemas.send);
+    const task = gateway.sendDirect(c.get('me'), b.to, {
+      kind: b.kind,
+      project: b.project ?? null,
+      title: b.title ?? null,
+      body: b.body,
+      ...(b.attachments ? { attachments: b.attachments } : {}),
     });
-    if ('error' in out) {
-      return out.error === 'no_channel'
-        ? bad(c, 403, 'no_channel', 'redeem an invite code from this agent first')
-        : bad(c, 403, 'scope_not_allowed', { allowed: out.allowed });
-    }
-    return c.json({ task: out.task }, 201);
+    return c.json({ task }, 201);
   });
 
   app.get('/v1/tasks', (c) => {
     const box = c.req.query('box') === 'outbox' ? 'outbox' : 'inbox';
     const statuses = c.req.query('status')?.split(',').filter(Boolean) as TaskStatus[] | undefined;
     const n = Math.min(Number(c.req.query('limit') ?? 50) || 50, 200);
-    return c.json({ tasks: store.listTasks(c.get('agent').id, box, statuses ?? null, n) });
+    return c.json({ tasks: gateway.listTasks(c.get('me'), box, statuses ?? null, n) });
   });
 
-  /** Returns the task if the caller is a party to it. */
-  function partyTask(c: Context<Env>) {
-    const id = c.req.param('id') ?? '';
-    const parties = store.taskParties(id);
-    const me = c.get('agent').id;
-    if (!parties || (parties.senderId !== me && parties.recipientId !== me)) return null;
-    return {
-      task: store.getTask(id)!,
-      isSender: parties.senderId === me,
-      isRecipient: parties.recipientId === me,
-    };
-  }
-
-  app.get('/v1/tasks/:id', (c) => {
-    const t = partyTask(c);
-    if (!t) return bad(c, 404, 'not_found');
-    return c.json({ task: t.task, messages: store.taskMessages(t.task.id) });
-  });
+  app.get('/v1/tasks/:id', (c) => c.json(gateway.getTask(c.get('me'), c.req.param('id'))));
 
   app.post('/v1/tasks/:id/status', async (c) => {
-    const t = partyTask(c);
-    if (!t) return bad(c, 404, 'not_found');
-    const p = await parse(c, statusSchema);
-    if (!p.ok) return p.res;
-    const { status, result } = p.data;
-    const current = t.task.status;
-    const allowed =
-      status === 'canceled'
-        ? t.isSender && !TERMINAL_STATUSES.includes(current)
-        : t.isRecipient && RECIPIENT_TRANSITIONS[current].includes(status);
-    if (!allowed) return bad(c, 409, 'invalid_transition', { from: current, to: status });
-    return c.json({ task: store.updateTaskStatus(t.task.id, status, result ?? null) });
+    const b = await body(c, schemas.status);
+    return c.json({
+      task: gateway.setTaskStatus(c.get('me'), c.req.param('id'), b.status, b.result ?? null),
+    });
   });
 
   app.post('/v1/tasks/:id/messages', async (c) => {
-    const t = partyTask(c);
-    if (!t) return bad(c, 404, 'not_found');
-    const p = await parse(c, messageSchema);
-    if (!p.ok) return p.res;
-    const out = postMessage(store, t.task, c.get('agent'), t.isSender, p.data.body);
-    if ('error' in out) return bad(c, 409, out.error);
-    return c.json(out, 201);
+    const b = await body(c, schemas.threadMessage);
+    return c.json({ task: gateway.continueTask(c.get('me'), c.req.param('id'), b.body) }, 201);
   });
 
+  // ---- conversations ----
+
+  app.get('/v1/conversations', (c) =>
+    c.json({ conversations: gateway.listConversations(c.get('me')) }),
+  );
+
+  app.post('/v1/conversations', async (c) => {
+    const b = await body(c, schemas.conversation);
+    return c.json({ conversation: gateway.createConversation(c.get('me'), b) }, 201);
+  });
+
+  app.get('/v1/conversations/:id', (c) =>
+    c.json({ conversation: gateway.getConversation(c.get('me'), c.req.param('id')) }),
+  );
+
+  app.patch('/v1/conversations/:id', async (c) => {
+    const b = await body(c, schemas.conversationPatch);
+    return c.json({
+      conversation: gateway.renameConversation(c.get('me'), c.req.param('id'), b.title),
+    });
+  });
+
+  app.get('/v1/conversations/:id/messages', (c) => {
+    const num = (k: string) => {
+      const v = Number(c.req.query(k));
+      return Number.isFinite(v) && v > 0 ? v : undefined;
+    };
+    const before = num('before');
+    const after = num('after');
+    const limit = num('limit');
+    return c.json({
+      messages: gateway.listMessages(c.get('me'), c.req.param('id'), {
+        ...(before ? { before } : {}),
+        ...(after ? { after } : {}),
+        ...(limit ? { limit } : {}),
+      }),
+    });
+  });
+
+  app.post('/v1/conversations/:id/messages', async (c) => {
+    const b = await body(c, schemas.post);
+    return c.json({ message: gateway.postMessage(c.get('me'), c.req.param('id'), b) }, 201);
+  });
+
+  app.post('/v1/conversations/:id/members', async (c) => {
+    const b = await body(c, schemas.member);
+    return c.json(
+      { conversation: gateway.addMember(c.get('me'), c.req.param('id'), b.handle) },
+      201,
+    );
+  });
+
+  app.delete('/v1/conversations/:id/members/:handle', (c) => {
+    gateway.removeMember(c.get('me'), c.req.param('id'), c.req.param('handle'));
+    return c.json({ ok: true });
+  });
+
+  app.post('/v1/conversations/:id/invitation', async (c) => {
+    const b = await body(c, schemas.invitation);
+    return c.json({
+      conversation: gateway.respondToInvite(c.get('me'), c.req.param('id'), b.accept),
+    });
+  });
+
+  app.post('/v1/conversations/:id/read', async (c) => {
+    const b = await body(c, schemas.read);
+    gateway.markRead(c.get('me'), c.req.param('id'), b.seq);
+    return c.json({ ok: true });
+  });
+
+  // ---- owner approvals ----
+
+  app.get('/v1/approvals', (c) => {
+    const status = c.req.query('status');
+    const filter =
+      status === 'all' ? null : ((status as 'pending' | 'approved' | 'rejected' | undefined) ?? 'pending');
+    return c.json({ approvals: gateway.listApprovals(c.get('me'), filter) });
+  });
+
+  app.post('/v1/approvals/:id', async (c) => {
+    const b = await body(c, schemas.decision);
+    return c.json({
+      approval: gateway.decide(c.get('me'), c.req.param('id'), b.decision, {
+        body: b.body,
+        note: b.note,
+      }),
+    });
+  });
+
+  // ---- files ----
+
+  app.get('/v1/files/:id', (c) => {
+    const file = gateway.attachment(c.get('me'), c.req.param('id'));
+    const inline =
+      /^(image|audio|video)\//.test(file.mediaType) || file.mediaType === 'application/pdf';
+    return c.body(Buffer.from(file.data), 200, {
+      'content-type': file.mediaType,
+      'content-length': String(file.size),
+      'content-disposition': `${inline ? 'inline' : 'attachment'}; filename="${encodeURIComponent(file.filename)}"`,
+      'x-content-type-options': 'nosniff',
+      'content-security-policy': "default-src 'none'; sandbox",
+    });
+  });
+
+  // ---- Telegram ----
+
+  app.post('/v1/telegram/link', (c) =>
+    c.json(
+      { code: gateway.createTelegramLinkCode(c.get('me')), bot: opts.telegramBot ?? null },
+      201,
+    ),
+  );
+
+  app.delete('/v1/telegram/link', (c) => {
+    gateway.unlinkTelegram(c.get('me'));
+    return c.json({ ok: true });
+  });
+
+  // ---- live events ----
+
   /**
-   * Server-sent events for the calling agent. Resume with `Last-Event-ID` (or `?since=`);
+   * Server-sent events for the caller. Resume with `Last-Event-ID` (or `?since=`);
    * without either, the stream starts from now.
    */
   app.get('/v1/stream', (c) => {
-    const me = c.get('agent');
+    const me = c.get('me');
     const resume = c.req.header('last-event-id') ?? c.req.query('since');
     let last = resume !== undefined ? Number(resume) || 0 : store.latestEventSeq(me.id);
     const heartbeatMs = (opts.heartbeatSeconds ?? 15) * 1000;
@@ -239,12 +434,11 @@ export function createApp(store: Store, opts: ServerOptions = {}) {
       const queue: GatewayEvent[] = [];
       let wake: (() => void) | null = null;
       let closed = false;
-      const push = (e: GatewayEvent) => {
+      // Subscribe before replaying so nothing slips between the two; seq dedupes the overlap.
+      const unsubscribe = gateway.hub.subscribe(me.id, (e) => {
         queue.push(e);
         wake?.();
-      };
-      // Subscribe before replaying so nothing slips between the two; seq dedupes the overlap.
-      const unsubscribe = hub.subscribe(me.id, push);
+      });
       stream.onAbort(() => {
         closed = true;
         unsubscribe();
@@ -254,7 +448,7 @@ export function createApp(store: Store, opts: ServerOptions = {}) {
 
       await stream.writeSSE({
         event: 'ready',
-        data: JSON.stringify({ agent: me.handle, since: last }),
+        data: JSON.stringify({ handle: me.handle, since: last }),
       });
       while (!closed) {
         while (queue.length && !closed) {
@@ -277,11 +471,15 @@ export function createApp(store: Store, opts: ServerOptions = {}) {
     });
   });
 
-  mountA2A(app, store, hub, limiter, {
+  const a2a = mountA2A(app, gateway, limiter, {
     publicUrl: opts.publicUrl,
-    blockingTimeoutMs: (opts.a2aBlockingTimeoutSeconds ?? 300) * 1000,
+    blockingTimeoutMs: opts.a2aBlockingTimeoutSeconds
+      ? opts.a2aBlockingTimeoutSeconds * 1000
+      : undefined,
     heartbeatMs: (opts.heartbeatSeconds ?? 15) * 1000,
+    allowPrivateWebhooks: Boolean(opts.allowPrivateWebhooks),
   });
+  mountWebApp(app);
 
-  return app;
+  return Object.assign(app, { gateway, a2a });
 }

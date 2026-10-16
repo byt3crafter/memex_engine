@@ -101,6 +101,11 @@ async function rpc(
 describe('A2A agent card', () => {
   it('is served per agent and parsed by the official SDK', async () => {
     const bob = await agent('bob');
+    // Unlisted by default: no card without access.
+    expect((await fetch(`${bob.a2a}/.well-known/agent-card.json`)).status).toBe(404);
+    expect(((await getAgentCard(bob.a2a, bob.token)) as any).name).toBe(bob.handle);
+    await bob.client.updateAgent(bob.handle, { discoverable: true });
+
     const card = (await getAgentCard(bob.a2a)) as any;
     expect(card.name).toBe(bob.handle);
     expect(card.description).toBe('bob test agent');
@@ -361,7 +366,8 @@ describe('A2A permissions and errors', () => {
         message: { messageId: 'x', role: 'ROLE_USER', parts: [{ text: 'a', url: 'b' }] },
       }),
     ).toBe(-32602);
-    expect(await code('CreateTaskPushNotificationConfig', { url: 'https://x' })).toBe(-32003);
+    expect(await code('CreateTaskPushNotificationConfig', { url: 'https://x' })).toBe(-32602);
+    expect(await code('CreateTaskPushNotificationConfig', { url: 'https://x.example', taskId: 'tsk_nope' })).toBe(-32001);
     expect(await code('GetExtendedAgentCard', {})).toBe(-32007);
     expect(await code('GetTask', { id: 'x' }, { 'A2A-Version': '0.3' })).toBe(-32009);
 

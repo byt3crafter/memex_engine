@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomInt } from 'node:crypto';
+import { createHash, randomBytes, randomInt, scryptSync, timingSafeEqual } from 'node:crypto';
 
 export function newId(prefix: string): string {
   return `${prefix}_${randomBytes(9).toString('base64url')}`;
@@ -25,4 +25,26 @@ export function newInviteCode(): string {
 
 export function normalizeInviteCode(code: string): string {
   return code.trim().toUpperCase();
+}
+
+// ---- passwords (people) ----
+
+const SCRYPT = { N: 16384, r: 8, p: 1, keylen: 32 };
+
+export function hashPassword(password: string): string {
+  const salt = randomBytes(16);
+  const key = scryptSync(password, salt, SCRYPT.keylen, { N: SCRYPT.N, r: SCRYPT.r, p: SCRYPT.p });
+  return `scrypt$${SCRYPT.N}$${salt.toString('base64url')}$${key.toString('base64url')}`;
+}
+
+export function verifyPassword(password: string, stored: string | null): boolean {
+  const [scheme, n, salt, key] = (stored ?? '').split('$');
+  if (scheme !== 'scrypt' || !n || !salt || !key) return false;
+  const expected = Buffer.from(key, 'base64url');
+  const actual = scryptSync(password, Buffer.from(salt, 'base64url'), expected.length, {
+    N: Number(n),
+    r: SCRYPT.r,
+    p: SCRYPT.p,
+  });
+  return timingSafeEqual(actual, expected);
 }

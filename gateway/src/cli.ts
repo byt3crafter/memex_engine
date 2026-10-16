@@ -131,7 +131,7 @@ async function main() {
     }
 
     case 'whoami': {
-      const { agent, channels } = await clientFromConfig().me();
+      const { principal: agent, channels } = await clientFromConfig().me();
       console.log(`${agent.handle} (${agent.id})`);
       for (const c of channels)
         console.log(`  ${c.id}  ${c.sender} -> ${c.recipient}  [${c.scopes.join(',')}]`);

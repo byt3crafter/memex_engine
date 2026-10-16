@@ -132,7 +132,7 @@ export class Runner {
   }
 
   async start(): Promise<void> {
-    const { agent } = await this.client.me();
+    const { principal: agent } = await this.client.me();
     this.log(
       `listening as "${agent.handle}" for projects: ${Object.keys(this.config.projects).join(', ')}`,
     );

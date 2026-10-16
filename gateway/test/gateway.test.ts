@@ -137,6 +137,8 @@ describe('event stream', () => {
     const ready = new Promise<void>((r) => (connected = r));
     const done = bob.client.subscribe(
       (e) => {
+        // Conversation events arrive too; this test follows tasks.
+        if (e.type !== 'task.created') return;
         seen.push(e);
         if (seen.length === 2) ac.abort();
       },
@@ -157,6 +159,7 @@ describe('event stream', () => {
     const replayed: GatewayEvent[] = [];
     await bob.client.subscribe(
       (e) => {
+        if (e.type !== 'task.created') return;
         replayed.push(e);
         ac2.abort();
       },

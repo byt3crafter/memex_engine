@@ -2,9 +2,15 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type {
-  Agent,
+  Approval,
+  ApprovalMode,
+  Attachment,
   Channel,
+  Conversation,
+  ConversationSummary,
   GatewayEvent,
+  Message,
+  Principal,
   Scope,
   Task,
   TaskMessage,
@@ -16,25 +22,63 @@ export class GatewayError extends Error {
     readonly status: number,
     readonly code: string,
     readonly detail?: unknown,
+    readonly serverMessage?: string,
   ) {
     super(
-      `${code} (HTTP ${status})${detail ? `: ${typeof detail === 'string' ? detail : JSON.stringify(detail)}` : ''}`,
+      `${serverMessage && serverMessage !== code ? serverMessage : code} (HTTP ${status})${
+        detail && typeof detail === 'string' ? `: ${detail}` : ''
+      }`,
     );
   }
 }
 
+export interface AttachmentUpload {
+  filename: string;
+  mediaType: string;
+  /** Base64. */
+  data: string;
+}
+
+export interface InviteOptions {
+  /** Which of your agents the code gives access to (people must say; agents default to themselves). */
+  agent?: string;
+  scopes?: Scope[];
+  mutual?: boolean;
+  approval?: ApprovalMode;
+  /** For a person redeeming: their own agents may use the access too. Default true. */
+  includeAgents?: boolean;
+  ttlSeconds?: number;
+  maxUses?: number;
+  /** How long the access lasts once redeemed. Default: until revoked. */
+  grantTtlSeconds?: number | null;
+}
+
+export interface Invite {
+  code: string;
+  agent: string;
+  scopes: Scope[];
+  mutual: boolean;
+  approval: ApprovalMode;
+  includeAgents: boolean;
+  maxUses: number;
+  expiresAt: string;
+}
+
+export interface Me {
+  principal: Principal;
+  agents: Principal[];
+  channels: Channel[];
+  telegramLinked: boolean;
+}
+
+/** Typed client for the gateway's REST API. */
 export class GatewayClient {
   constructor(
     readonly url: string,
     readonly token?: string,
   ) {}
 
-  private async req<T>(
-    method: string,
-    path: string,
-    body?: unknown,
-    headers: Record<string, string> = {},
-  ): Promise<T> {
+  private async req<T>(method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<T> {
     const res = await fetch(new URL(path, this.url), {
       method,
       headers: {
@@ -45,13 +89,29 @@ export class GatewayClient {
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!res.ok)
-      throw new GatewayError(res.status, String(json.error ?? 'http_error'), json.detail);
+    if (!res.ok) {
+      throw new GatewayError(
+        res.status,
+        String(json.error ?? 'http_error'),
+        json.detail,
+        typeof json.message === 'string' ? json.message : undefined,
+      );
+    }
     return json as T;
   }
 
+  private q(params: Record<string, string | number | undefined>): string {
+    const entries = Object.entries(params)
+      .filter(([, v]) => v !== undefined)
+      .map(([k, v]): [string, string] => [k, String(v)]);
+    return entries.length ? `?${new URLSearchParams(entries)}` : '';
+  }
+
+  // ---- identity ----
+
+  /** Register an agent. With a person's session token, the agent belongs to that person. */
   register(handle: string, description?: string, registrationKey?: string) {
-    return this.req<{ agent: Agent; token: string }>(
+    return this.req<{ agent: Principal; token: string }>(
       'POST',
       '/v1/agents',
       { handle, ...(description ? { description } : {}) },
@@ -59,22 +119,46 @@ export class GatewayClient {
     );
   }
 
-  me() {
-    return this.req<{ agent: Agent; channels: Channel[] }>('GET', '/v1/me');
+  signUp(handle: string, password: string, displayName?: string, registrationKey?: string) {
+    return this.req<{ person: Principal; token: string; expiresAt: string }>(
+      'POST',
+      '/v1/people',
+      { handle, password, ...(displayName ? { displayName } : {}) },
+      registrationKey ? { 'x-registration-key': registrationKey } : {},
+    );
   }
 
-  createInvite(
-    opts: { scopes?: Scope[]; mutual?: boolean; ttlSeconds?: number; maxUses?: number } = {},
-  ) {
-    return this.req<{
-      invite: {
-        code: string;
-        scopes: Scope[];
-        mutual: boolean;
-        maxUses: number;
-        expiresAt: string;
-      };
-    }>('POST', '/v1/invites', opts);
+  login(handle: string, password: string) {
+    return this.req<{ person: Principal; token: string; expiresAt: string }>('POST', '/v1/sessions', {
+      handle,
+      password,
+    });
+  }
+
+  logout() {
+    return this.req<{ ok: true }>('DELETE', '/v1/sessions');
+  }
+
+  me() {
+    return this.req<Me>('GET', '/v1/me');
+  }
+
+  myAgents() {
+    return this.req<{ agents: Principal[] }>('GET', '/v1/agents');
+  }
+
+  updateAgent(handle: string, patch: { description?: string | null; discoverable?: boolean; paused?: boolean }) {
+    return this.req<{ agent: Principal }>('PATCH', `/v1/agents/${encodeURIComponent(handle)}`, patch);
+  }
+
+  rotateAgentToken(handle: string) {
+    return this.req<{ agent: Principal; token: string }>('POST', `/v1/agents/${encodeURIComponent(handle)}/token`);
+  }
+
+  // ---- sharing ----
+
+  createInvite(opts: InviteOptions = {}) {
+    return this.req<{ invite: Invite }>('POST', '/v1/invites', opts);
   }
 
   redeem(code: string) {
@@ -85,47 +169,154 @@ export class GatewayClient {
     return this.req<{ channels: Channel[] }>('GET', '/v1/channels');
   }
 
+  updateChannel(
+    id: string,
+    patch: { scopes?: Scope[]; approval?: ApprovalMode; includeAgents?: boolean; expiresAt?: string | null },
+  ) {
+    return this.req<{ channel: Channel }>('PATCH', `/v1/channels/${encodeURIComponent(id)}`, patch);
+  }
+
   revokeChannel(id: string) {
     return this.req<{ channel: Channel }>('DELETE', `/v1/channels/${encodeURIComponent(id)}`);
   }
 
-  send(input: { to: string; body: string; kind?: Scope; project?: string; title?: string }) {
+  // ---- tasks ----
+
+  send(input: {
+    to: string;
+    body: string;
+    kind?: Scope;
+    project?: string;
+    title?: string;
+    attachments?: AttachmentUpload[];
+  }) {
     return this.req<{ task: Task }>('POST', '/v1/tasks', input);
   }
 
   list(box: 'inbox' | 'outbox' = 'inbox', status?: TaskStatus[], limit = 50) {
-    const q = new URLSearchParams({ box, limit: String(limit) });
-    if (status?.length) q.set('status', status.join(','));
-    return this.req<{ tasks: Task[] }>('GET', `/v1/tasks?${q}`);
+    return this.req<{ tasks: Task[] }>(
+      'GET',
+      `/v1/tasks${this.q({ box, limit, status: status?.length ? status.join(',') : undefined })}`,
+    );
   }
 
+  /** The task, its thread, and the recent conversation before it (what the agent may see). */
   get(id: string) {
-    return this.req<{ task: Task; messages: TaskMessage[] }>(
+    return this.req<{ task: Task; messages: TaskMessage[]; context: Message[] }>(
       'GET',
       `/v1/tasks/${encodeURIComponent(id)}`,
     );
   }
 
-  setStatus(id: string, status: Exclude<TaskStatus, 'submitted'>, result?: string) {
+  setStatus(id: string, status: Exclude<TaskStatus, 'submitted' | 'pending_approval' | 'reviewing'>, result?: string) {
     return this.req<{ task: Task }>('POST', `/v1/tasks/${encodeURIComponent(id)}/status`, {
       status,
       ...(result === undefined ? {} : { result }),
     });
   }
 
+  /** Add to a task: as sender, answers `input_required`; otherwise a note on the thread. */
   message(id: string, body: string) {
-    return this.req<{ message: TaskMessage; task: Task }>(
-      'POST',
-      `/v1/tasks/${encodeURIComponent(id)}/messages`,
-      {
-        body,
-      },
+    return this.req<{ task: Task }>('POST', `/v1/tasks/${encodeURIComponent(id)}/messages`, { body });
+  }
+
+  // ---- conversations ----
+
+  conversations() {
+    return this.req<{ conversations: ConversationSummary[] }>('GET', '/v1/conversations');
+  }
+
+  createConversation(input: { title?: string | null; members?: string[] }) {
+    return this.req<{ conversation: Conversation }>('POST', '/v1/conversations', input);
+  }
+
+  conversation(id: string) {
+    return this.req<{ conversation: Conversation }>('GET', `/v1/conversations/${encodeURIComponent(id)}`);
+  }
+
+  renameConversation(id: string, title: string | null) {
+    return this.req<{ conversation: Conversation }>('PATCH', `/v1/conversations/${encodeURIComponent(id)}`, { title });
+  }
+
+  messages(id: string, opts: { before?: number; after?: number; limit?: number } = {}) {
+    return this.req<{ messages: Message[] }>(
+      'GET',
+      `/v1/conversations/${encodeURIComponent(id)}/messages${this.q(opts)}`,
     );
   }
 
+  post(
+    id: string,
+    input: {
+      body: string;
+      to?: string[];
+      kind?: Scope;
+      project?: string | null;
+      title?: string | null;
+      replyTo?: string | null;
+      attachments?: AttachmentUpload[];
+    },
+  ) {
+    return this.req<{ message: Message }>('POST', `/v1/conversations/${encodeURIComponent(id)}/messages`, input);
+  }
+
+  addMember(id: string, handle: string) {
+    return this.req<{ conversation: Conversation }>('POST', `/v1/conversations/${encodeURIComponent(id)}/members`, {
+      handle,
+    });
+  }
+
+  removeMember(id: string, handle: string) {
+    return this.req<{ ok: true }>(
+      'DELETE',
+      `/v1/conversations/${encodeURIComponent(id)}/members/${encodeURIComponent(handle)}`,
+    );
+  }
+
+  respondToInvitation(id: string, accept: boolean) {
+    return this.req<{ conversation: Conversation | null }>(
+      'POST',
+      `/v1/conversations/${encodeURIComponent(id)}/invitation`,
+      { accept },
+    );
+  }
+
+  markRead(id: string, seq: number) {
+    return this.req<{ ok: true }>('POST', `/v1/conversations/${encodeURIComponent(id)}/read`, { seq });
+  }
+
+  // ---- approvals ----
+
+  approvals(status: 'pending' | 'approved' | 'rejected' | 'all' = 'pending') {
+    return this.req<{ approvals: Approval[] }>('GET', `/v1/approvals${this.q({ status })}`);
+  }
+
+  decide(id: string, decision: 'approve' | 'reject', opts: { body?: string; note?: string } = {}) {
+    return this.req<{ approval: Approval }>('POST', `/v1/approvals/${encodeURIComponent(id)}`, { decision, ...opts });
+  }
+
+  // ---- files ----
+
+  async download(file: Attachment | string): Promise<Uint8Array> {
+    const id = typeof file === 'string' ? file : file.id;
+    const res = await fetch(new URL(`/v1/files/${encodeURIComponent(id)}`, this.url), {
+      headers: this.token ? { authorization: `Bearer ${this.token}` } : {},
+    });
+    if (!res.ok) throw new GatewayError(res.status, 'download_failed');
+    return new Uint8Array(await res.arrayBuffer());
+  }
+
+  // ---- Telegram ----
+
+  telegramLinkCode() {
+    return this.req<{ code: string; bot: string | null }>('POST', '/v1/telegram/link');
+  }
+
+  // ---- live events ----
+
   /**
-   * Follow this agent's event stream, reconnecting with backoff and resuming from the last
-   * seen event. Resolves when `signal` aborts.
+   * Follow this principal's event stream, reconnecting with backoff and resuming from the
+   * last seen event. Resolves when `signal` aborts.
    */
   async subscribe(
     onEvent: (e: GatewayEvent) => void | Promise<void>,
@@ -172,9 +363,7 @@ export class GatewayClient {
   }
 }
 
-async function* sseFrames(
-  body: ReadableStream<Uint8Array>,
-): AsyncGenerator<{ event: string; data: string }> {
+async function* sseFrames(body: ReadableStream<Uint8Array>): AsyncGenerator<{ event: string; data: string }> {
   const decoder = new TextDecoder();
   let buf = '';
   for await (const chunk of body) {
@@ -200,6 +389,8 @@ export interface LocalConfig {
   url: string;
   token: string;
   handle: string;
+  /** "human" for a signed-in person, "agent" for an agent token. */
+  kind?: 'human' | 'agent';
 }
 
 export function configDir(): string {
@@ -208,11 +399,7 @@ export function configDir(): string {
 
 export function loadConfig(): LocalConfig | null {
   if (process.env.AGW_URL && process.env.AGW_TOKEN) {
-    return {
-      url: process.env.AGW_URL,
-      token: process.env.AGW_TOKEN,
-      handle: process.env.AGW_HANDLE ?? '',
-    };
+    return { url: process.env.AGW_URL, token: process.env.AGW_TOKEN, handle: process.env.AGW_HANDLE ?? '' };
   }
   try {
     return JSON.parse(readFileSync(join(configDir(), 'config.json'), 'utf8')) as LocalConfig;
@@ -230,9 +417,10 @@ export function saveConfig(cfg: LocalConfig): string {
 
 export function clientFromConfig(): GatewayClient {
   const cfg = loadConfig();
-  if (!cfg)
+  if (!cfg) {
     throw new Error(
-      'Not registered. Run `agw register <handle> --url <gateway-url>` first (or set AGW_URL and AGW_TOKEN).',
+      'Not signed in. Run `agw login <handle>` (people) or `agw register <handle>` (agents), or set AGW_URL and AGW_TOKEN.',
     );
+  }
   return new GatewayClient(cfg.url, cfg.token);
 }
