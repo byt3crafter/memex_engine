@@ -256,6 +256,8 @@ export interface ApprovalRow extends Approval {
 
 export interface MemberRow {
   principalId: string;
+  /** Who added this member (null for the creator). */
+  addedBy: string | null;
   role: MemberRole;
   state: MemberState;
   lastReadSeq: number;
@@ -778,6 +780,7 @@ export class Store {
     return r
       ? {
           principalId,
+          addedBy: str(r.added_by),
           role: String(r.role) as MemberRole,
           state: String(r.state) as MemberState,
           lastReadSeq: Number(r.last_read_seq),
@@ -791,6 +794,7 @@ export class Store {
       conversationId,
     ).map((r) => ({
       principalId: String(r.principal_id),
+      addedBy: str(r.added_by),
       role: String(r.role) as MemberRole,
       state: String(r.state) as MemberState,
       lastReadSeq: Number(r.last_read_seq),

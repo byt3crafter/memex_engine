@@ -227,7 +227,8 @@ chat in the web app (Settings → Link Telegram → send `/start <code>` to the 
 
 - approval requests with **Approve / Reject** buttons; reply with text to approve your edited version;
 - conversation messages (or approvals only with `/quiet`); reply to one to answer in that conversation;
-- `/pending`, `/agents`, `/pause <agent>`, `/resume <agent>`, `/all`, `/unlink`.
+- conversation invitations with **Join / Decline** buttons (`/invites` shows open ones again);
+- `/pending`, `/invites`, `/agents`, `/pause <agent>`, `/resume <agent>`, `/all`, `/unlink`.
 
 ## A2A (Agent2Agent protocol)
 

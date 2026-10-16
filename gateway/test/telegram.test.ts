@@ -190,6 +190,88 @@ describe('Telegram bridge', () => {
     );
   });
 
+  it('lets people join or decline conversations from Telegram', async () => {
+    const MARCUS_CHAT = 5151;
+    const marcus = await gw.person('marcus');
+    const me = await gw.person('ludo');
+    const myClaude = await gw.agent('ludo-claude', me);
+    const { code } = await marcus.client.telegramLinkCode();
+    tg.text(MARCUS_CHAT, `/start ${code}`);
+    await eventually(
+      async () =>
+        tg.sent.find((m) => m.chat_id === String(MARCUS_CHAT) && m.text.startsWith('Linked')),
+      'link',
+    );
+
+    // My Claude starts a conversation with Marcus: he gets Join / Decline.
+    const { conversation } = await myClaude.client.createConversation({
+      title: 'Q3 plan',
+      members: [marcus.handle],
+    });
+    const invite = await eventually(
+      async () =>
+        tg.sent.find((m) => m.chat_id === String(MARCUS_CHAT) && m.text.includes('invited you to')),
+      'invitation',
+    );
+    expect(invite.text).toContain(`${myClaude.handle} invited you to \u201cQ3 plan\u201d`);
+    expect(invite.text).toContain(`Also in it: ${me.handle}`);
+    const [join, decline] = invite.reply_markup.inline_keyboard[0];
+    expect(join.callback_data).toBe(`inv:${conversation.id}:join`);
+    expect(decline.callback_data).toBe(`inv:${conversation.id}:decline`);
+
+    tg.tap(MARCUS_CHAT, invite.message_id, join.callback_data);
+    await eventually(async () => tg.answers.includes('Joined'), 'join answer');
+    expect(
+      (await marcus.client.conversations()).conversations.find((c) => c.id === conversation.id)
+        ?.myState,
+    ).toBe('joined');
+
+    // Messages now reach him, and he answers from Telegram.
+    await me.client.post(conversation.id, { body: 'Marcus, can we move the review to Friday?' });
+    const relayed = await eventually(
+      async () =>
+        tg.sent.find(
+          (m) => m.chat_id === String(MARCUS_CHAT) && m.text.includes('move the review'),
+        ),
+      'relayed message',
+    );
+    tg.text(MARCUS_CHAT, 'Friday works.', relayed.message_id);
+    await eventually(
+      async () =>
+        (await me.client.messages(conversation.id)).messages.find(
+          (m) => m.author === marcus.handle && m.body === 'Friday works.',
+        ),
+      'reply in conversation',
+    );
+
+    // Tapping again: the invitation is closed.
+    tg.tap(MARCUS_CHAT, invite.message_id, join.callback_data);
+    await eventually(
+      async () => tg.answers.includes('This invitation is no longer open'),
+      'stale tap',
+    );
+
+    // A second invitation, found again with /invites, declined.
+    const { conversation: other } = await me.client.createConversation({
+      title: 'Offsite',
+      members: [marcus.handle],
+    });
+    await eventually(
+      async () => tg.sent.find((m) => m.text.includes('\u201cOffsite\u201d')),
+      'second invitation',
+    );
+    tg.text(MARCUS_CHAT, '/invites');
+    const again = await eventually(
+      async () => tg.sent.filter((m) => m.text.includes('\u201cOffsite\u201d')).at(1),
+      'resent invitation',
+    );
+    tg.tap(MARCUS_CHAT, again.message_id, `inv:${other.id}:decline`);
+    await eventually(async () => tg.answers.includes('Declined'), 'decline answer');
+    expect((await marcus.client.conversations()).conversations.some((c) => c.id === other.id)).toBe(
+      false,
+    );
+  });
+
   it('ignores chats that are not linked', async () => {
     tg.text(999, 'hello?');
     await eventually(

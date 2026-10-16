@@ -10,6 +10,7 @@ import type { Approval, GatewayEvent, Message, Principal } from './types.js';
  * In Telegram:
  *   /start <code>   link this chat (code from the web app or `POST /v1/telegram/link`)
  *   /pending        what's waiting for your approval
+ *   /invites        conversations you're invited to (Join / Decline buttons)
  *   /agents         your agents; /pause <agent>, /resume <agent>
  *   /quiet, /all    approvals only, or everything (default)
  *   /unlink
@@ -123,6 +124,30 @@ export async function startTelegramBridge(gateway: Gateway, opts: TelegramOption
     store.mapTelegramMessage(chatId, sent.message_id, { conversationId: msg.conversationId });
   }
 
+  async function notifyInvitation(chatId: string, person: Principal, conversationId: string) {
+    const conv = store.getConversation(conversationId);
+    const me = store.member(conversationId, person.id);
+    if (!conv || me?.state !== 'invited') return;
+    const inviter = me.addedBy ? store.handleOf(me.addedBy) : conv.createdBy;
+    const others = conv.members
+      .filter((m) => m.handle !== person.handle && m.handle !== inviter)
+      .map((m) => `${m.handle}${m.kind === 'agent' ? ' (agent)' : ''}`);
+    const text =
+      `\u2709\ufe0f ${inviter} invited you to \u201c${conv.title ?? 'a conversation'}\u201d` +
+      (others.length ? `\nAlso in it: ${others.join(', ')}` : '');
+    const sent = await send(chatId, text, {
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '\u2705 Join', callback_data: `inv:${conversationId}:join` },
+            { text: '\u2715 Decline', callback_data: `inv:${conversationId}:decline` },
+          ],
+        ],
+      },
+    });
+    store.mapTelegramMessage(chatId, sent.message_id, { conversationId });
+  }
+
   async function markResolved(a: Approval) {
     for (const ref of store.telegramMessagesForApproval(a.id)) {
       const verdict = a.status === 'approved' ? '✅ Approved' : '❌ Rejected';
@@ -157,11 +182,7 @@ export async function startTelegramBridge(gateway: Gateway, opts: TelegramOption
       } else if (e.type === 'message.created' && prefs.notify === 'all') {
         await notifyMessage(chatId, person, e.data as Message);
       } else if (e.type === 'conversation.invited') {
-        const conv = e.data as { id: string; title: string | null; createdBy: string };
-        await send(
-          chatId,
-          `✉️ You were invited to “${conv.title ?? 'a conversation'}”. Open the app to join${opts.appUrl ? `: ${opts.appUrl}/app` : '.'}`,
-        );
+        await notifyInvitation(chatId, person, (e.data as { id: string }).id);
       }
     };
     run().catch((err) => console.error('telegram notify failed:', (err as Error).message));
@@ -206,6 +227,14 @@ export async function startTelegramBridge(gateway: Gateway, opts: TelegramOption
           const pending = gateway.listApprovals(person);
           if (!pending.length) return reply(chatId, 'Nothing is waiting for you.');
           for (const a of pending) await notifyApproval(chatId, a);
+          return;
+        }
+        case '/invites': {
+          const open = store
+            .conversationIdsFor(person.id)
+            .filter((id) => store.member(id, person.id)?.state === 'invited');
+          if (!open.length) return reply(chatId, 'No open invitations.');
+          for (const id of open) await notifyInvitation(chatId, person, id);
           return;
         }
         case '/agents': {
@@ -274,6 +303,27 @@ export async function startTelegramBridge(gateway: Gateway, opts: TelegramOption
       } catch (err) {
         answer = err instanceof GatewayError ? err.message : 'Failed';
       }
+    } else if (person && kind === 'inv' && id && (decision === 'join' || decision === 'decline')) {
+      try {
+        const conv = gateway.respondToInvite(person, id, decision === 'join');
+        answer = decision === 'join' ? 'Joined' : 'Declined';
+        if (q.message) {
+          await call('editMessageReplyMarkup', {
+            chat_id: chatId,
+            message_id: q.message.message_id,
+            reply_markup: { inline_keyboard: [] },
+          }).catch(() => {});
+        }
+        await send(
+          chatId,
+          conv
+            ? `\u2705 You joined \u201c${conv.title ?? 'the conversation'}\u201d. New messages will come here; reply to one to answer.`
+            : '\u2715 Declined.',
+          q.message ? { reply_to_message_id: q.message.message_id } : {},
+        ).catch(() => {});
+      } catch {
+        answer = 'This invitation is no longer open';
+      }
     }
     await call('answerCallbackQuery', { callback_query_id: q.id, text: answer }).catch(() => {});
   }
@@ -317,6 +367,7 @@ export async function startTelegramBridge(gateway: Gateway, opts: TelegramOption
 
 const HELP = `Agent Gateway
 /pending — approvals waiting for you
+/invites — conversations you're invited to
 /agents — your agents
 /pause <agent>, /resume <agent>
 /quiet — approvals only; /all — everything
