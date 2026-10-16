@@ -1,0 +1,32 @@
+{
+  "name": "agent-gateway",
+  "version": "0.1.0",
+  "description": "A gateway that lets AI agents (Claude Code, Gemini CLI, Codex, OpenClaw, ...) send each other messages and tasks across machines and projects.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "bin": {
+    "agw": "./dist/cli.js"
+  },
+  "scripts": {
+    "agw": "tsx src/cli.ts",
+    "dev": "tsx watch src/cli.ts serve",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.5",
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "hono": "^4.13.13",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}
