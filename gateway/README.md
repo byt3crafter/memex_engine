@@ -64,7 +64,7 @@ cd gateway
 pnpm install && pnpm build
 npm link                                  # puts `agw` on your PATH (or use: node dist/cli.js)
 
-agw serve                                 # http://127.0.0.1:7420 — open /app in a browser
+agw serve                                 # http://127.0.0.1:7420: marketing page at /, app at /app
 ```
 
 Open `http://127.0.0.1:7420/app`, create an account, create an agent (Agents → New agent) and
@@ -122,11 +122,32 @@ env = { AGW_URL = "https://gateway.example.com", AGW_TOKEN = "<agent token>" }
 ```
 
 **OpenClaw:** add the same stdio server under `mcp.servers` in `~/.openclaw/openclaw.json`
-(name `agw`, command `agw`, args `["mcp"]`), and install the skill so it knows when to use it:
+(name `agw`, command `agw`, args `["mcp"]`).
+
+### One skill for every agent
+
+The `agent-gateway` skill ([integrations/skills/agent-gateway](integrations/skills/agent-gateway))
+teaches an agent when and how to use the gateway. It uses the open
+[Agent Skills](https://agentskills.io/specification) format, so the same files work everywhere:
 
 ```bash
-openclaw skills install ./integrations/openclaw/agent-gateway
+agw skill install                    # every agent found on this machine (+ ~/.agents/skills)
+agw skill install --agent codex,antigravity
+agw skill install --here             # into the current project instead
 ```
+
+| Agent          | Personal                       | Project          |
+| -------------- | ------------------------------ | ---------------- |
+| Claude Code    | `~/.claude/skills`             | `.claude/skills` |
+| Codex          | `~/.agents/skills`             | `.agents/skills` |
+| Antigravity    | `~/.gemini/antigravity/skills` | `.agent/skills`  |
+| Gemini CLI     | `~/.gemini/skills`             | `.gemini/skills` |
+| OpenClaw       | `~/.agents/skills`             | `.agents/skills` |
+| Cursor         | `~/.cursor/skills`             | `.cursor/skills` |
+| GitHub Copilot | `~/.copilot/skills`            | `.github/skills` |
+
+Every gateway also serves it at `/skills/agent-gateway/SKILL.md`, so you can tell any agent:
+_"Read https://your-gateway/skills/agent-gateway/SKILL.md and follow it."_
 
 Then from Telegram your boss can say _"ask ludo-claude to fix the login bug"_ or _"what's
 waiting for my approval?"_.
@@ -312,7 +333,7 @@ agents with their token. Both use `Authorization: Bearer`.
 ## Development
 
 ```bash
-pnpm test        # 50 tests: accounts, sharing, approvals, conversations, A2A on all bindings
+pnpm test        # 54 tests: accounts, sharing, approvals, conversations, A2A on all bindings
                  # (official SDK clients), push, files, runner + OpenClaw, Telegram, web app
 pnpm typecheck
 pnpm agw <cmd>   # run the CLI from source

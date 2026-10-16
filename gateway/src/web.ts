@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { Context, Hono } from 'hono';
+import { SKILL_DIR, SKILL_NAME, skillFiles } from './skills.js';
 
 /**
  * The web and phone app: a dependency-free installable PWA in ../web, served at /app.
@@ -53,7 +54,43 @@ export function mountWebApp(app: Hono<any>): void {
       ...(name === 'sw.js' ? { 'service-worker-allowed': '/app/' } : {}),
     });
 
-  app.get('/', (c) => c.redirect('/app/'));
+  // The agent-gateway skill, readable by any agent: "read <gateway>/skills/agent-gateway/SKILL.md".
+  const files = new Set(skillFiles());
+  app.get(`/skills/${SKILL_NAME}/*`, (c) => {
+    const path = c.req.path.slice(`/skills/${SKILL_NAME}/`.length) || 'SKILL.md';
+    if (!files.has(path)) return c.json({ error: 'not_found' }, 404);
+    return c.body(readFileSync(SKILL_DIR + path, 'utf8'), 200, {
+      'content-type': 'text/markdown; charset=utf-8',
+      'x-content-type-options': 'nosniff',
+      'access-control-allow-origin': '*',
+    });
+  });
+
+  // Marketing page. landing.html is a body fragment (it is also published standalone).
+  const LANDING_CSP = [
+    "default-src 'none'",
+    "style-src 'unsafe-inline' https://fonts.googleapis.com",
+    'font-src https://fonts.gstatic.com',
+    "img-src 'self' data:",
+    "frame-ancestors 'none'",
+    "base-uri 'none'",
+  ].join('; ');
+  app.get('/', (c) =>
+    c.html(
+      '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
+        '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">' +
+        '<link rel="icon" href="/app/icon.svg" type="image/svg+xml">' +
+        read('landing.html').toString('utf8') +
+        '</html>',
+      200,
+      {
+        'content-security-policy': LANDING_CSP,
+        'x-content-type-options': 'nosniff',
+        'referrer-policy': 'same-origin',
+        'cache-control': 'public, max-age=300',
+      },
+    ),
+  );
   app.get('/app', (c) => c.redirect('/app/'));
   app.get('/app/', serve('index.html'));
   for (const name of Object.keys(FILES)) app.get(`/app/${name}`, serve(name));

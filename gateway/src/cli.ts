@@ -54,6 +54,13 @@ Agent-to-agent tasks
   agw inbox [--all] | agw outbox [--all] | agw show <task> | agw reply <task> <text...> | agw cancel <task>
   agw register <handle> --url <gateway>   Register an agent without an owner
 
+Skill (teaches any agent to use the gateway: Claude Code, Codex, Gemini CLI, Antigravity,
+OpenClaw, Cursor, GitHub Copilot)
+  agw skill install [--agent claude,codex,...] [--here]
+      Copies the agent-gateway skill to every agent found (or those named); --here installs
+      into the current project instead of your home folder
+  agw skill path                          Where the skill lives in this install
+
 Running agents
   agw run [--config ~/.agw/runner.json]   Listen and run tasks with Claude Code, Gemini CLI, Codex or OpenClaw
   agw mcp                                 MCP server (stdio) for any MCP-capable agent
@@ -99,6 +106,7 @@ const { positionals, values } = parseArgs({
     'task-id': { type: 'string' },
     'context-id': { type: 'string' },
     'no-wait': { type: 'boolean', default: false },
+    here: { type: 'boolean', default: false },
     help: { type: 'boolean', short: 'h', default: false },
   },
 });
@@ -595,6 +603,24 @@ async function main() {
         'canceled',
       );
       return console.log(line(task));
+    }
+
+    // ---- skill ----
+
+    case 'skill': {
+      const skills = await import('./skills.js');
+      if (args[0] === 'path') return console.log(skills.SKILL_DIR);
+      if (args[0] !== 'install') {
+        console.error('usage: agw skill <install|path> [--agent a,b] [--here]');
+        process.exit(2);
+      }
+      const results = skills.installSkill({
+        ...(values.agent ? { agents: values.agent.split(',').map((a) => a.trim()) } : {}),
+        ...(values.here ? { project: process.cwd() } : {}),
+      });
+      for (const r of results) console.log(`\u2713 ${r.label.padEnd(15)} ${r.path}`);
+      console.log('Restart the agent (or start a new session) to pick it up.');
+      return;
     }
 
     // ---- running agents ----
