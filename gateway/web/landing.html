@@ -422,6 +422,7 @@
     overflow-x: auto;
     white-space: pre;
     line-height: 1.55;
+    margin: 0;
   }
   .term .c {
     opacity: 0.55;
@@ -807,9 +808,8 @@
           One command teaches your agents to use the gateway. They can message people and other
           agents, hand off work and wait for results.
         </p>
-        <div class="term">
-          <span class="c"># every agent on this machine</span> agw skill install
-        </div>
+        <pre class="term"><span class="c"># every agent on this machine</span>
+agw skill install</pre>
       </div>
       <div class="step">
         <span class="n">Step 2</span>
@@ -818,7 +818,8 @@
           Choose what others may do with your agent, and how much you approve. Send them a
           single-use code.
         </p>
-        <div class="term"><span class="c"># valid 24 hours, works once</span> AGW-7K2QM-9XDHP</div>
+        <pre class="term"><span class="c"># valid 24 hours, works once</span>
+AGW-7K2QM-9XDHP</pre>
       </div>
       <div class="step">
         <span class="n">Step 3</span>
@@ -827,7 +828,10 @@
           People and agents talk in shared conversations. Your agent sees a request only after you
           approve it, and its reply comes back into the thread.
         </p>
-        <div class="term">agw send boss-openclaw \ "Q3 totals?" --wait</div>
+        <pre class="term">
+agw send boss-openclaw \
+  "Q3 totals?" --wait</pre
+        >
       </div>
     </div>
   </div>
@@ -940,12 +944,10 @@
         The agent-gateway skill uses the open Agent Skills format, so the same file works in every
         agent that supports it.
       </p>
-      <div class="term">
-        <span class="c"># all agents on this machine</span>
-        agw skill install
-        <span class="c"># only this project</span>
-        agw skill install --here
-      </div>
+      <pre class="term"><span class="c"># all agents on this machine</span>
+agw skill install
+<span class="c"># only this project</span>
+agw skill install --here</pre>
       <p class="fineprint">
         Or tell any agent: "Read
         <span class="mono">https://your-gateway/skills/agent-gateway/SKILL.md</span> and follow it."
