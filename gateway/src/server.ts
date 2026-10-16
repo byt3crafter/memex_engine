@@ -2,7 +2,9 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
+import { mountA2A } from './a2a.js';
 import { newInviteCode, newToken, normalizeInviteCode, sha256 } from './auth.js';
+import { authenticate, Hub, openTask, postMessage, RateLimiter } from './core.js';
 import type { Store } from './store.js';
 import { SCOPES, TERMINAL_STATUSES } from './types.js';
 import type { Agent, GatewayEvent, TaskStatus } from './types.js';
@@ -14,6 +16,10 @@ export interface ServerOptions {
   rateLimitPerMinute?: number;
   /** Seconds between keep-alive pings on idle event streams. */
   heartbeatSeconds?: number;
+  /** Public base URL used in A2A agent cards. Defaults to the request's origin. */
+  publicUrl?: string | undefined;
+  /** How long a blocking A2A `SendMessage` waits for the task to finish. Default 300s. */
+  a2aBlockingTimeoutSeconds?: number;
 }
 
 const MAX_BODY = 64 * 1024;
@@ -65,11 +71,8 @@ type Env = { Variables: { agent: Agent } };
 
 export function createApp(store: Store, opts: ServerOptions = {}) {
   const app = new Hono<Env>();
-  const listeners = new Map<string, Set<(e: GatewayEvent) => void>>();
-  store.onEvent = (agentId, event) => listeners.get(agentId)?.forEach((fn) => fn(event));
-
-  const limit = opts.rateLimitPerMinute ?? 240;
-  const windows = new Map<string, { start: number; count: number }>();
+  const hub = new Hub(store);
+  const limiter = new RateLimiter(opts.rateLimitPerMinute ?? 240);
 
   const bad = (
     c: Context,
@@ -112,16 +115,9 @@ export function createApp(store: Store, opts: ServerOptions = {}) {
 
   // Everything below needs a bearer token.
   app.use('/v1/*', async (c, next) => {
-    const header = c.req.header('authorization') ?? '';
-    const token = header.startsWith('Bearer ') ? header.slice(7) : '';
-    const agent = token ? store.agentByTokenHash(sha256(token)) : null;
+    const agent = authenticate(store, c.req.header('authorization'));
     if (!agent) return bad(c, 401, 'unauthorized');
-
-    const t = Date.now();
-    const w = windows.get(agent.id);
-    if (!w || t - w.start > 60_000) windows.set(agent.id, { start: t, count: 1 });
-    else if (++w.count > limit) return bad(c, 429, 'rate_limited');
-
+    if (!limiter.allow(agent.id)) return bad(c, 429, 'rate_limited');
     c.set('agent', agent);
     await next();
   });
@@ -164,23 +160,18 @@ export function createApp(store: Store, opts: ServerOptions = {}) {
   app.post('/v1/tasks', async (c) => {
     const p = await parse(c, sendSchema);
     if (!p.ok) return p.res;
-    const me = c.get('agent');
-    const to = store.agentByHandle(p.data.to);
-    // Same error for "no such agent" and "no channel" so handles can't be probed.
-    const ch = to ? store.channelBetween(me.id, to.id) : null;
-    if (!to || !ch || ch.revokedAt)
-      return bad(c, 403, 'no_channel', 'redeem an invite code from this agent first');
-    if (!ch.scopes.includes(p.data.kind))
-      return bad(c, 403, 'scope_not_allowed', { allowed: ch.scopes });
-    const task = store.createTask({
-      senderId: me.id,
-      recipientId: to.id,
+    const out = openTask(store, c.get('agent'), store.agentByHandle(p.data.to), {
       kind: p.data.kind,
       project: p.data.project ?? null,
       title: p.data.title ?? null,
       body: p.data.body,
     });
-    return c.json({ task }, 201);
+    if ('error' in out) {
+      return out.error === 'no_channel'
+        ? bad(c, 403, 'no_channel', 'redeem an invite code from this agent first')
+        : bad(c, 403, 'scope_not_allowed', { allowed: out.allowed });
+    }
+    return c.json({ task: out.task }, 201);
   });
 
   app.get('/v1/tasks', (c) => {
@@ -229,14 +220,9 @@ export function createApp(store: Store, opts: ServerOptions = {}) {
     if (!t) return bad(c, 404, 'not_found');
     const p = await parse(c, messageSchema);
     if (!p.ok) return p.res;
-    if (TERMINAL_STATUSES.includes(t.task.status)) return bad(c, 409, 'task_closed');
-    const message = store.addTaskMessage(t.task.id, c.get('agent').id, p.data.body);
-    // The sender answering a question puts the task back in the recipient's queue.
-    const task =
-      t.isSender && t.task.status === 'input_required'
-        ? store.updateTaskStatus(t.task.id, 'submitted', null)
-        : t.task;
-    return c.json({ message, task }, 201);
+    const out = postMessage(store, t.task, c.get('agent'), t.isSender, p.data.body);
+    if ('error' in out) return bad(c, 409, out.error);
+    return c.json(out, 201);
   });
 
   /**
@@ -258,13 +244,10 @@ export function createApp(store: Store, opts: ServerOptions = {}) {
         wake?.();
       };
       // Subscribe before replaying so nothing slips between the two; seq dedupes the overlap.
-      let set = listeners.get(me.id);
-      if (!set) listeners.set(me.id, (set = new Set()));
-      set.add(push);
+      const unsubscribe = hub.subscribe(me.id, push);
       stream.onAbort(() => {
         closed = true;
-        set.delete(push);
-        if (!set.size) listeners.delete(me.id);
+        unsubscribe();
         wake?.();
       });
       queue.push(...store.eventsSince(me.id, last));
@@ -292,6 +275,12 @@ export function createApp(store: Store, opts: ServerOptions = {}) {
         if (idle && !closed) await stream.writeSSE({ event: 'ping', data: '' });
       }
     });
+  });
+
+  mountA2A(app, store, hub, limiter, {
+    publicUrl: opts.publicUrl,
+    blockingTimeoutMs: (opts.a2aBlockingTimeoutSeconds ?? 300) * 1000,
+    heartbeatMs: (opts.heartbeatSeconds ?? 15) * 1000,
   });
 
   return app;

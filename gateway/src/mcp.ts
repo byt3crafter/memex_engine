@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { describeA2A, getA2ATask, getAgentCard, sendA2A } from './a2a-client.js';
 import type { GatewayClient } from './client.js';
 import { escape, fenceTask, UNTRUSTED_NOTE } from './fence.js';
 import { TERMINAL_STATUSES } from './types.js';
@@ -191,6 +192,65 @@ export function createMcpServer(client: GatewayClient): McpServer {
           .map((c) => `Channel ${c.id}: ${c.sender} -> ${c.recipient} [${c.scopes.join(',')}]`)
           .join('\n');
       }),
+  );
+
+  // ---- any A2A agent ----
+
+  const fenceA2A = (url: string, body: string) =>
+    `${UNTRUSTED_NOTE}\n\n<agent_message from="${url}" trust="untrusted">\n${escape(body)}\n</agent_message>`;
+
+  server.registerTool(
+    'a2a_get_card',
+    {
+      description:
+        'Fetch an A2A (Agent2Agent protocol) agent card: what an agent does, its skills and how to call it. ' +
+        'Accepts the agent\u2019s base URL or its agent-card.json URL.',
+      inputSchema: { url: z.string().url() },
+    },
+    ({ url }) => run(async () => fenceA2A(url, JSON.stringify(await getAgentCard(url), null, 2))),
+  );
+
+  server.registerTool(
+    'a2a_send',
+    {
+      description:
+        'Send a message to any A2A agent by URL and (by default) wait for its answer. Use task_id to continue a ' +
+        'task that needs input. Credentials come from ~/.agw/a2a.json; agents on your own gateway work automatically.',
+      inputSchema: {
+        url: z.string().url().describe('Agent base URL or agent card URL'),
+        text: z.string(),
+        kind: z.enum(['message', 'task']).optional().describe('For Agent Gateway agents'),
+        project: z.string().optional().describe('For Agent Gateway agents'),
+        task_id: z.string().optional(),
+        context_id: z.string().optional(),
+        wait: z.boolean().default(true),
+      },
+    },
+    ({ url, text, kind, project, task_id, context_id, wait }) =>
+      run(async () =>
+        fenceA2A(
+          url,
+          describeA2A(
+            await sendA2A(url, text, {
+              kind,
+              project,
+              taskId: task_id,
+              contextId: context_id,
+              wait,
+            }),
+          ),
+        ),
+      ),
+  );
+
+  server.registerTool(
+    'a2a_get_task',
+    {
+      description: 'Get the current state and result of a task on an A2A agent.',
+      inputSchema: { url: z.string().url(), task_id: z.string() },
+    },
+    ({ url, task_id }) =>
+      run(async () => fenceA2A(url, describeA2A({ task: await getA2ATask(url, task_id) }))),
   );
 
   return server;

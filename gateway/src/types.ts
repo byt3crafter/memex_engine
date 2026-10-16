@@ -41,6 +41,8 @@ export interface Channel {
 
 export interface Task {
   id: string;
+  /** Conversation this task belongs to (A2A `contextId`). */
+  contextId: string;
   /** Sender handle. */
   from: string;
   /** Recipient handle. */

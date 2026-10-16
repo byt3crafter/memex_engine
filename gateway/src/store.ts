@@ -87,6 +87,17 @@ export class Store {
     this.db = new DatabaseSync(path);
     this.db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
     this.db.exec(SCHEMA);
+    this.migrate();
+  }
+
+  /** Additive migrations for databases created by earlier versions. */
+  private migrate(): void {
+    const cols = (this.db.prepare('PRAGMA table_info(tasks)').all() as Row[]).map((r) => r.name);
+    if (!cols.includes('context_id')) {
+      this.db.exec('ALTER TABLE tasks ADD COLUMN context_id TEXT');
+      this.db.exec("UPDATE tasks SET context_id = 'ctx_' || id WHERE context_id IS NULL");
+    }
+    this.db.exec('CREATE INDEX IF NOT EXISTS tasks_context ON tasks (context_id)');
   }
 
   close(): void {
@@ -232,17 +243,20 @@ export class Store {
     project: string | null;
     title: string | null;
     body: string;
+    /** Groups related tasks into one conversation (A2A `contextId`). New context when omitted. */
+    contextId?: string | null;
   }): Task {
     return this.tx(() => {
       const id = newId('tsk');
       const ts = now();
       this.db
         .prepare(
-          `INSERT INTO tasks (id, sender_id, recipient_id, kind, project, title, body, status, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 'submitted', ?, ?)`,
+          `INSERT INTO tasks (id, context_id, sender_id, recipient_id, kind, project, title, body, status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'submitted', ?, ?)`,
         )
         .run(
           id,
+          input.contextId ?? newId('ctx'),
           input.senderId,
           input.recipientId,
           input.kind,
@@ -284,6 +298,32 @@ export class Store {
       .prepare(`SELECT * FROM tasks WHERE ${col} = ? ${filter} ORDER BY created_at DESC LIMIT ?`)
       .all(agentId, ...(statuses ?? []), limit) as Row[];
     return rows.map((r) => this.toTask(r));
+  }
+
+  /** Tasks `senderId` sent to `recipientId`, newest first, for the A2A `ListTasks` view. */
+  listTasksBetween(
+    senderId: string,
+    recipientId: string,
+    filter: { contextId?: string; status?: TaskStatus; updatedAfter?: string },
+    limit: number,
+    offset: number,
+  ): { tasks: Task[]; total: number } {
+    const where = ['sender_id = ?', 'recipient_id = ?'];
+    const args: (string | number)[] = [senderId, recipientId];
+    const add = (clause: string, value: string | undefined) => {
+      if (value === undefined) return;
+      where.push(clause);
+      args.push(value);
+    };
+    add('context_id = ?', filter.contextId);
+    add('status = ?', filter.status);
+    add('updated_at >= ?', filter.updatedAfter);
+    const sql = `FROM tasks WHERE ${where.join(' AND ')}`;
+    const total = Number((this.db.prepare(`SELECT COUNT(*) AS n ${sql}`).get(...args) as Row).n);
+    const rows = this.db
+      .prepare(`SELECT * ${sql} ORDER BY created_at DESC, rowid DESC LIMIT ? OFFSET ?`)
+      .all(...args, limit, offset) as Row[];
+    return { tasks: rows.map((r) => this.toTask(r)), total };
   }
 
   updateTaskStatus(id: string, status: TaskStatus, result: string | null): Task {
@@ -396,6 +436,7 @@ export class Store {
   private toTask(r: Row): Task {
     return {
       id: String(r.id),
+      contextId: String(r.context_id ?? `ctx_${String(r.id)}`),
       from: this.handleOf(String(r.sender_id)),
       to: this.handleOf(String(r.recipient_id)),
       kind: String(r.kind) as Scope,

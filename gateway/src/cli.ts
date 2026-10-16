@@ -30,6 +30,13 @@ Messaging
 Agents
   agw run [--config ~/.agw/runner.json]   Listen and run tasks with Claude Code / Gemini CLI / Codex
   agw mcp                                 MCP server (stdio) for any MCP-capable agent
+
+A2A (any Agent2Agent agent; this gateway's agents are at <gateway>/a2a/<handle>)
+  agw a2a card <agent-url>
+  agw a2a send <agent-url> <text...> [--task] [--project p] [--task-id id] [--context-id id]
+                                      [--no-wait] [--token t]
+  agw a2a get <agent-url> <task-id> [--token t]
+  agw a2a cancel <agent-url> <task-id> [--token t]
 `;
 
 const { positionals, values } = parseArgs({
@@ -50,6 +57,10 @@ const { positionals, values } = parseArgs({
     wait: { type: 'boolean', default: false },
     all: { type: 'boolean', default: false },
     config: { type: 'string' },
+    token: { type: 'string' },
+    'task-id': { type: 'string' },
+    'context-id': { type: 'string' },
+    'no-wait': { type: 'boolean', default: false },
     help: { type: 'boolean', short: 'h', default: false },
   },
 });
@@ -90,7 +101,10 @@ async function main() {
         import('./server.js'),
       ]);
       const store = new Store(values.db);
-      const app = createApp(store, { registrationKey: process.env.AGW_REGISTRATION_KEY });
+      const app = createApp(store, {
+        registrationKey: process.env.AGW_REGISTRATION_KEY,
+        publicUrl: process.env.AGW_PUBLIC_URL,
+      });
       serve({ fetch: app.fetch, port: Number(values.port), hostname: values.host }, (info) => {
         console.log(
           `agent gateway listening on http://${values.host}:${info.port} (db: ${values.db})`,
@@ -224,6 +238,57 @@ async function main() {
     case 'mcp': {
       const { runMcpStdio } = await import('./mcp.js');
       return runMcpStdio(clientFromConfig());
+    }
+
+    case 'a2a': {
+      const a2a = await import('./a2a-client.js');
+      const [sub, target, ...rest] = args;
+      const agentUrl = need(target, `agw a2a ${sub ?? '<card|send|get|cancel>'} <agent-url> ...`);
+      switch (sub) {
+        case 'card':
+          return console.log(
+            JSON.stringify(await a2a.getAgentCard(agentUrl, values.token), null, 2),
+          );
+        case 'send': {
+          const result = await a2a.sendA2A(
+            agentUrl,
+            need(rest.join(' '), 'agw a2a send <agent-url> <text...>'),
+            {
+              token: values.token,
+              kind: values.task ? 'task' : undefined,
+              project: values.project,
+              title: values.title,
+              taskId: values['task-id'],
+              contextId: values['context-id'],
+              wait: !values['no-wait'],
+            },
+          );
+          return console.log(a2a.describeA2A(result));
+        }
+        case 'get':
+          return console.log(
+            a2a.describeA2A({
+              task: await a2a.getA2ATask(
+                agentUrl,
+                need(rest[0], 'agw a2a get <agent-url> <task-id>'),
+                values.token,
+              ),
+            }),
+          );
+        case 'cancel':
+          return console.log(
+            a2a.describeA2A({
+              task: await a2a.cancelA2ATask(
+                agentUrl,
+                need(rest[0], 'agw a2a cancel <agent-url> <task-id>'),
+                values.token,
+              ),
+            }),
+          );
+        default:
+          console.error('usage: agw a2a <card|send|get|cancel> <agent-url> ...');
+          process.exit(2);
+      }
     }
 
     default:
