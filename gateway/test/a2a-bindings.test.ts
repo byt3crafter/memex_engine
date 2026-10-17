@@ -16,7 +16,7 @@ let server: Awaited<ReturnType<typeof startServer>>;
 let url: string;
 
 beforeAll(async () => {
-  process.env.AGW_A2A_GRPC_INSECURE = '1';
+  process.env.NODD_A2A_GRPC_INSECURE = '1';
   server = await startServer(new Store(':memory:'), {
     port: 0,
     host: '127.0.0.1',

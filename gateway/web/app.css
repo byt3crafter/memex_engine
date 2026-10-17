@@ -152,7 +152,7 @@ a {
     gap: 4px;
   }
   .tabs::before {
-    content: 'Agent Gateway';
+    content: 'OpenNodd';
     font-weight: 700;
     padding: 4px 10px 14px;
     font-size: 16px;

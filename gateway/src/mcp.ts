@@ -37,7 +37,7 @@ const summary = (t: Task) =>
 
 /** MCP tools that let any MCP-capable agent (Claude Code, Gemini CLI, Codex, ...) use the gateway. */
 export function createMcpServer(client: GatewayClient): McpServer {
-  const server = new McpServer({ name: 'agent-gateway', version: '0.3.0' });
+  const server = new McpServer({ name: 'opennodd', version: '0.3.0' });
 
   const run = async (fn: () => Promise<string>) => {
     try {
@@ -391,12 +391,12 @@ export function createMcpServer(client: GatewayClient): McpServer {
     {
       description:
         'Send a message to any A2A agent by URL and (by default) wait for its answer. Use task_id to continue a ' +
-        'task that needs input. Credentials come from ~/.agw/a2a.json; agents on your own gateway work automatically.',
+        'task that needs input. Credentials come from ~/.nodd/a2a.json; agents on your own gateway work automatically.',
       inputSchema: {
         url: z.string().url().describe('Agent base URL or agent card URL'),
         text: z.string(),
-        kind: z.enum(['message', 'task']).optional().describe('For Agent Gateway agents'),
-        project: z.string().optional().describe('For Agent Gateway agents'),
+        kind: z.enum(['message', 'task']).optional().describe('For OpenNodd agents'),
+        project: z.string().optional().describe('For OpenNodd agents'),
         task_id: z.string().optional(),
         context_id: z.string().optional(),
         wait: z.boolean().default(true),

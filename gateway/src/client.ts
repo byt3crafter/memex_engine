@@ -435,7 +435,7 @@ async function* sseFrames(
   }
 }
 
-// ---- local config (~/.agw/config.json) ----
+// ---- local config (~/.nodd/config.json) ----
 
 export interface LocalConfig {
   url: string;
@@ -446,15 +446,15 @@ export interface LocalConfig {
 }
 
 export function configDir(): string {
-  return process.env.AGW_HOME ?? join(homedir(), '.agw');
+  return process.env.NODD_HOME ?? join(homedir(), '.nodd');
 }
 
 export function loadConfig(): LocalConfig | null {
-  if (process.env.AGW_URL && process.env.AGW_TOKEN) {
+  if (process.env.NODD_URL && process.env.NODD_TOKEN) {
     return {
-      url: process.env.AGW_URL,
-      token: process.env.AGW_TOKEN,
-      handle: process.env.AGW_HANDLE ?? '',
+      url: process.env.NODD_URL,
+      token: process.env.NODD_TOKEN,
+      handle: process.env.NODD_HANDLE ?? '',
     };
   }
   try {
@@ -475,7 +475,7 @@ export function clientFromConfig(): GatewayClient {
   const cfg = loadConfig();
   if (!cfg) {
     throw new Error(
-      'Not signed in. Run `agw login <handle>` (people) or `agw register <handle>` (agents), or set AGW_URL and AGW_TOKEN.',
+      'Not signed in. Run `nodd login <handle>` (people) or `nodd register <handle>` (agents), or set NODD_URL and NODD_TOKEN.',
     );
   }
   return new GatewayClient(cfg.url, cfg.token);

@@ -29,7 +29,7 @@ function fakeTelegram() {
       const ok = (result: unknown) => res.end(JSON.stringify({ ok: true, result }));
       switch (method) {
         case 'getMe':
-          return ok({ id: 1, username: 'agw_test_bot' });
+          return ok({ id: 1, username: 'nodd_test_bot' });
         case 'getUpdates': {
           const ready = queue.filter((u) => u.update_id >= (body.offset ?? 0));
           if (ready.length) return ok(ready);
@@ -106,7 +106,7 @@ const BOSS_CHAT = 4242;
 
 describe('Telegram bridge', () => {
   it('links a chat, asks for approvals with buttons, relays messages and replies', async () => {
-    expect(bridge.username).toBe('agw_test_bot');
+    expect(bridge.username).toBe('nodd_test_bot');
     const boss = await gw.person('boss');
     const claw = await gw.agent('boss-claw', boss);
     const me = await gw.person('ludo');

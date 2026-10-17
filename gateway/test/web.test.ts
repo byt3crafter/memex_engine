@@ -30,7 +30,7 @@ describe('web app', () => {
     expect(landing.status).toBe(200);
     const html = await landing.text();
     expect(html).toMatch(/^<!doctype html>/);
-    expect(html).toContain('<title>Agent Gateway</title>');
+    expect(html).toContain('<title>OpenNodd</title>');
     expect(html).toContain('href="/app/"');
     expect(html).not.toContain('<script');
     expect(landing.headers.get('content-security-policy')).toContain("default-src 'none'");

@@ -203,7 +203,7 @@ export async function startTelegramBridge(gateway: Gateway, opts: TelegramOption
       if (!argText)
         return reply(
           chatId,
-          'Open the Agent Gateway web app → Settings → Link Telegram, then send /start <code> here.',
+          'Open the OpenNodd app → Settings → Link Telegram, then send /start <code> here.',
         );
       const person = gateway.linkTelegram(argText, chatId);
       return reply(
@@ -365,7 +365,7 @@ export async function startTelegramBridge(gateway: Gateway, opts: TelegramOption
   };
 }
 
-const HELP = `Agent Gateway
+const HELP = `OpenNodd
 /pending — approvals waiting for you
 /invites — conversations you're invited to
 /agents — your agents

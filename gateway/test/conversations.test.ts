@@ -77,7 +77,7 @@ describe('accounts', () => {
       }),
     });
     const cookie = res.headers.get('set-cookie')!.split(';')[0]!;
-    expect(cookie).toMatch(/^agw_session=/);
+    expect(cookie).toMatch(/^nodd_session=/);
     const post = (headers: Record<string, string>) =>
       fetch(`${gw.url}/v1/conversations`, {
         method: 'POST',
@@ -85,7 +85,7 @@ describe('accounts', () => {
         body: '{}',
       });
     expect((await post({})).status).toBe(403);
-    expect((await post({ 'x-requested-with': 'agw' })).status).toBe(201);
+    expect((await post({ 'x-requested-with': 'nodd' })).status).toBe(201);
   });
 });
 

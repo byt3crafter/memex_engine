@@ -6,69 +6,69 @@ import { clientFromConfig, configDir, GatewayClient, loadConfig, saveConfig } fr
 import { APPROVAL_MODES, SCOPES } from './types.js';
 import type { ApprovalMode, Channel, Message, Scope, Task } from './types.js';
 
-const HELP = `agw - Agent Gateway: people and AI agents talking to each other
+const HELP = `nodd - OpenNodd: people and AI agents talking to each other
 
 Server
-  agw serve [--port 7420] [--host 127.0.0.1] [--db ./data/gateway.db] [--grpc-port 7421]
-      Web app at /app. Env: AGW_REGISTRATION_KEY (restrict sign-up), AGW_PUBLIC_URL,
-      AGW_TELEGRAM_BOT_TOKEN (owner notifications and approvals in Telegram)
+  nodd serve [--port 7420] [--host 127.0.0.1] [--db ./data/gateway.db] [--grpc-port 7421]
+      Web app at /app. Env: NODD_REGISTRATION_KEY (restrict sign-up), NODD_PUBLIC_URL,
+      NODD_TELEGRAM_BOT_TOKEN (owner notifications and approvals in Telegram)
 
 You (a person)
-  agw signup <handle> --url <gateway> [--name "Display Name"]
-  agw login <handle> --url <gateway>          (password from --password, AGW_PASSWORD or prompt)
-  agw logout | agw whoami
+  nodd signup <handle> --url <gateway> [--name "Display Name"]
+  nodd login <handle> --url <gateway>          (password from --password, NODD_PASSWORD or prompt)
+  nodd logout | nodd whoami
 
 Your agents
-  agw agent create <handle> [--description d] [--home dir]
-      Creates an agent you own. --home writes its token to <dir>/config.json for \`AGW_HOME=<dir> agw run\`.
-  agw agent list
-  agw agent pause|resume <handle>         Paused agents receive nothing until you approve
-  agw agent list-public|unlist <handle>   Show or hide its A2A card
-  agw agent token <handle>                Issue a new token (old one stops working)
+  nodd agent create <handle> [--description d] [--home dir]
+      Creates an agent you own. --home writes its token to <dir>/config.json for \`NODD_HOME=<dir> nodd run\`.
+  nodd agent list
+  nodd agent pause|resume <handle>         Paused agents receive nothing until you approve
+  nodd agent list-public|unlist <handle>   Show or hide its A2A card
+  nodd agent token <handle>                Issue a new token (old one stops working)
 
 Sharing
-  agw invite --agent <handle> [--scopes message,task] [--approval requests|all|auto]
+  nodd invite --agent <handle> [--scopes message,task] [--approval requests|all|auto]
              [--own-agents-only] [--ttl-hours 24] [--access-days N]
       Code that gives someone access to your agent. approval: requests (you approve each
       request, default), all (requests and replies), auto (full control).
-  agw redeem <code>
-  agw access                              Access you have and access to your agents
-  agw access set <id> [--approval mode] [--scopes ...]
-  agw revoke <id>
+  nodd redeem <code>
+  nodd access                              Access you have and access to your agents
+  nodd access set <id> [--approval mode] [--scopes ...]
+  nodd revoke <id>
 
 Conversations
-  agw chats
-  agw chat new [--title t] <handle...>    People are invited; agents need access
-  agw chat read <conversation> [--limit 30]
-  agw chat send <conversation> <text...> [--to agent] [--task] [--project p] [--file path]
-  agw chat add <conversation> <handle> | agw chat leave <conversation>
-  agw chat join|decline <conversation>
+  nodd chats
+  nodd chat new [--title t] <handle...>    People are invited; agents need access
+  nodd chat read <conversation> [--limit 30]
+  nodd chat send <conversation> <text...> [--to agent] [--task] [--project p] [--file path]
+  nodd chat add <conversation> <handle> | nodd chat leave <conversation>
+  nodd chat join|decline <conversation>
 
 Approvals (owners)
-  agw approvals [--all]
-  agw approve <id> [--edit "new text"] [--note n]
-  agw reject <id> [--note n]
+  nodd approvals [--all]
+  nodd approve <id> [--edit "new text"] [--note n]
+  nodd reject <id> [--note n]
 
 Agent-to-agent tasks
-  agw send <agent> <text...> [--task] [--project p] [--title t] [--wait]
-  agw inbox [--all] | agw outbox [--all] | agw show <task> | agw reply <task> <text...> | agw cancel <task>
-  agw register <handle> --url <gateway>   Register an agent without an owner
+  nodd send <agent> <text...> [--task] [--project p] [--title t] [--wait]
+  nodd inbox [--all] | nodd outbox [--all] | nodd show <task> | nodd reply <task> <text...> | nodd cancel <task>
+  nodd register <handle> --url <gateway>   Register an agent without an owner
 
 Skill (teaches any agent to use the gateway: Claude Code, Codex, Gemini CLI, Antigravity,
 OpenClaw, Cursor, GitHub Copilot)
-  agw skill install [--agent claude,codex,...] [--here]
-      Copies the agent-gateway skill to every agent found (or those named); --here installs
+  nodd skill install [--agent claude,codex,...] [--here]
+      Copies the opennodd skill to every agent found (or those named); --here installs
       into the current project instead of your home folder
-  agw skill path                          Where the skill lives in this install
+  nodd skill path                          Where the skill lives in this install
 
 Running agents
-  agw run [--config ~/.agw/runner.json]   Listen and run tasks with Claude Code, Gemini CLI, Codex or OpenClaw
-  agw mcp                                 MCP server (stdio) for any MCP-capable agent
+  nodd run [--config ~/.nodd/runner.json]   Listen and run tasks with Claude Code, Gemini CLI, Codex or OpenClaw
+  nodd mcp                                 MCP server (stdio) for any MCP-capable agent
 
 A2A (any Agent2Agent agent; this gateway's agents are at <gateway>/a2a/<handle>)
-  agw a2a card <agent-url>
-  agw a2a send <agent-url> <text...> [--task] [--project p] [--task-id id] [--context-id id] [--no-wait] [--token t]
-  agw a2a get|cancel <agent-url> <task-id> [--token t]
+  nodd a2a card <agent-url>
+  nodd a2a send <agent-url> <text...> [--task] [--project p] [--task-id id] [--context-id id] [--no-wait] [--token t]
+  nodd a2a get|cancel <agent-url> <task-id> [--token t]
 `;
 
 const { positionals, values } = parseArgs({
@@ -141,13 +141,13 @@ function need(value: string | undefined, usage: string): string {
 }
 
 function gatewayUrl(): string {
-  return values.url ?? loadConfig()?.url ?? process.env.AGW_URL ?? 'http://127.0.0.1:7420';
+  return values.url ?? loadConfig()?.url ?? process.env.NODD_URL ?? 'http://127.0.0.1:7420';
 }
 
 async function password(prompt: string): Promise<string> {
   if (values.password) return values.password;
-  if (process.env.AGW_PASSWORD) return process.env.AGW_PASSWORD;
-  if (!process.stdin.isTTY) throw new Error('no terminal: pass --password or set AGW_PASSWORD');
+  if (process.env.NODD_PASSWORD) return process.env.NODD_PASSWORD;
+  if (!process.stdin.isTTY) throw new Error('no terminal: pass --password or set NODD_PASSWORD');
   process.stdout.write(prompt);
   process.stdin.setRawMode(true);
   process.stdin.resume();
@@ -235,26 +235,26 @@ async function main() {
         port: Number(values.port),
         host: values.host,
         grpcPort: values['grpc-port'] ? Number(values['grpc-port']) : null,
-        registrationKey: process.env.AGW_REGISTRATION_KEY,
-        publicUrl: process.env.AGW_PUBLIC_URL,
-        secureCookies: process.env.AGW_PUBLIC_URL?.startsWith('https://') ?? false,
-        grpcTlsCertFile: process.env.AGW_GRPC_TLS_CERT,
-        grpcTlsKeyFile: process.env.AGW_GRPC_TLS_KEY,
-        telegramBot: process.env.AGW_TELEGRAM_BOT_USERNAME,
+        registrationKey: process.env.NODD_REGISTRATION_KEY,
+        publicUrl: process.env.NODD_PUBLIC_URL,
+        secureCookies: process.env.NODD_PUBLIC_URL?.startsWith('https://') ?? false,
+        grpcTlsCertFile: process.env.NODD_GRPC_TLS_CERT,
+        grpcTlsKeyFile: process.env.NODD_GRPC_TLS_KEY,
+        telegramBot: process.env.NODD_TELEGRAM_BOT_USERNAME,
       });
-      console.log(`agent gateway on ${server.url}  (web app: ${server.url}/app, db: ${values.db})`);
+      console.log(`OpenNodd on ${server.url}  (web app: ${server.url}/app, db: ${values.db})`);
       if (server.grpcPort) console.log(`A2A gRPC on ${values.host}:${server.grpcPort}`);
-      if (process.env.AGW_TELEGRAM_BOT_TOKEN) {
+      if (process.env.NODD_TELEGRAM_BOT_TOKEN) {
         const { startTelegramBridge } = await import('./telegram.js');
         const bot = await startTelegramBridge(server.gateway, {
-          token: process.env.AGW_TELEGRAM_BOT_TOKEN,
-          appUrl: process.env.AGW_PUBLIC_URL ?? server.url,
+          token: process.env.NODD_TELEGRAM_BOT_TOKEN,
+          appUrl: process.env.NODD_PUBLIC_URL ?? server.url,
         });
         console.log(`Telegram bridge running as @${bot.username}`);
       }
-      if (!process.env.AGW_REGISTRATION_KEY && values.host !== '127.0.0.1') {
+      if (!process.env.NODD_REGISTRATION_KEY && values.host !== '127.0.0.1') {
         console.warn(
-          'warning: open registration. Set AGW_REGISTRATION_KEY before exposing this publicly.',
+          'warning: open registration. Set NODD_REGISTRATION_KEY before exposing this publicly.',
         );
       }
       return;
@@ -263,7 +263,7 @@ async function main() {
     // ---- people ----
 
     case 'signup': {
-      const handle = need(args[0], 'agw signup <handle> --url <gateway>');
+      const handle = need(args[0], 'nodd signup <handle> --url <gateway>');
       const url = gatewayUrl();
       const { person, token } = await new GatewayClient(url).signUp(
         handle,
@@ -278,7 +278,7 @@ async function main() {
     }
 
     case 'login': {
-      const handle = need(args[0], 'agw login <handle> --url <gateway>');
+      const handle = need(args[0], 'nodd login <handle> --url <gateway>');
       const url = gatewayUrl();
       const { person, token } = await new GatewayClient(url).login(
         handle,
@@ -294,7 +294,7 @@ async function main() {
     }
 
     case 'register': {
-      const handle = need(args[0], 'agw register <handle> --url <gateway>');
+      const handle = need(args[0], 'nodd register <handle> --url <gateway>');
       const url = gatewayUrl();
       const { agent, token } = await new GatewayClient(url).register(
         handle,
@@ -329,20 +329,20 @@ async function main() {
       const [sub, handle] = args;
       switch (sub) {
         case 'create': {
-          const h = need(handle, 'agw agent create <handle>');
+          const h = need(handle, 'nodd agent create <handle>');
           const { agent, token } = await client.register(h, values.description);
           if (values.home) {
-            const prev = process.env.AGW_HOME;
-            process.env.AGW_HOME = values.home;
+            const prev = process.env.NODD_HOME;
+            process.env.NODD_HOME = values.home;
             const path = saveConfig({
               url: client.url,
               token,
               handle: agent.handle,
               kind: 'agent',
             });
-            process.env.AGW_HOME = prev;
+            process.env.NODD_HOME = prev;
             console.log(
-              `Created ${agent.handle}. Token saved to ${path}; run it with AGW_HOME=${values.home} agw run`,
+              `Created ${agent.handle}. Token saved to ${path}; run it with NODD_HOME=${values.home} nodd run`,
             );
           } else {
             console.log(`Created ${agent.handle}. Token (shown once):\n${token}`);
@@ -359,14 +359,14 @@ async function main() {
         }
         case 'pause':
         case 'resume': {
-          const { agent } = await client.updateAgent(need(handle, `agw agent ${sub} <handle>`), {
+          const { agent } = await client.updateAgent(need(handle, `nodd agent ${sub} <handle>`), {
             paused: sub === 'pause',
           });
           return console.log(`${agent.handle} is ${agent.paused ? 'paused' : 'running'}.`);
         }
         case 'list-public':
         case 'unlist': {
-          const { agent } = await client.updateAgent(need(handle, `agw agent ${sub} <handle>`), {
+          const { agent } = await client.updateAgent(need(handle, `nodd agent ${sub} <handle>`), {
             discoverable: sub === 'list-public',
           });
           return console.log(
@@ -375,12 +375,12 @@ async function main() {
         }
         case 'token': {
           const { agent, token } = await client.rotateAgentToken(
-            need(handle, 'agw agent token <handle>'),
+            need(handle, 'nodd agent token <handle>'),
           );
           return console.log(`New token for ${agent.handle} (shown once):\n${token}`);
         }
         default:
-          console.error('usage: agw agent <create|list|pause|resume|list-public|unlist|token> ...');
+          console.error('usage: nodd agent <create|list|pause|resume|list-public|unlist|token> ...');
           process.exit(2);
       }
       return;
@@ -411,7 +411,7 @@ async function main() {
     }
 
     case 'redeem': {
-      const { channels } = await clientFromConfig().redeem(need(args[0], 'agw redeem <code>'));
+      const { channels } = await clientFromConfig().redeem(need(args[0], 'nodd redeem <code>'));
       for (const c of channels) console.log(`Access granted: ${accessLine(c)}`);
       return;
     }
@@ -423,7 +423,7 @@ async function main() {
         const scopes = scopesOption();
         const approval = approvalOption();
         const { channel } = await client.updateChannel(
-          need(args[1], 'agw access set <id> [--approval mode]'),
+          need(args[1], 'nodd access set <id> [--approval mode]'),
           {
             ...(scopes ? { scopes } : {}),
             ...(approval ? { approval } : {}),
@@ -433,12 +433,12 @@ async function main() {
       }
       const { channels } = await client.channels();
       for (const c of channels) console.log(accessLine(c));
-      if (!channels.length) console.log('No access yet. Use `agw invite` or `agw redeem <code>`.');
+      if (!channels.length) console.log('No access yet. Use `nodd invite` or `nodd redeem <code>`.');
       return;
     }
 
     case 'revoke': {
-      const { channel } = await clientFromConfig().revokeChannel(need(args[0], 'agw revoke <id>'));
+      const { channel } = await clientFromConfig().revokeChannel(need(args[0], 'nodd revoke <id>'));
       return console.log(`Revoked ${channel.sender} -> ${channel.recipient}`);
     }
 
@@ -458,7 +458,7 @@ async function main() {
           );
       }
       if (!conversations.length)
-        console.log('No conversations. Start one with `agw chat new <handle...>`.');
+        console.log('No conversations. Start one with `nodd chat new <handle...>`.');
       return;
     }
 
@@ -477,7 +477,7 @@ async function main() {
           );
         }
         case 'read': {
-          const id = need(conv, 'agw chat read <conversation>');
+          const id = need(conv, 'nodd chat read <conversation>');
           const { messages } = await client.messages(id, { limit: Number(values.limit) });
           for (const m of messages) console.log(messageLine(m));
           const last = messages.at(-1);
@@ -485,7 +485,7 @@ async function main() {
           return;
         }
         case 'send': {
-          const id = need(conv, 'agw chat send <conversation> <text...>');
+          const id = need(conv, 'nodd chat send <conversation> <text...>');
           const files = filesOption();
           const { message } = await client.post(id, {
             body: rest.join(' '),
@@ -498,8 +498,8 @@ async function main() {
         }
         case 'add': {
           const { conversation } = await client.addMember(
-            need(conv, 'agw chat add <conversation> <handle>'),
-            need(rest[0], 'agw chat add <conversation> <handle>'),
+            need(conv, 'nodd chat add <conversation> <handle>'),
+            need(rest[0], 'nodd chat add <conversation> <handle>'),
           );
           return console.log(
             `Members: ${conversation.members.map((m) => `${m.handle} (${m.state})`).join(', ')}`,
@@ -507,19 +507,19 @@ async function main() {
         }
         case 'leave': {
           const me = loadConfig()?.handle ?? (await client.me()).principal.handle;
-          await client.removeMember(need(conv, 'agw chat leave <conversation>'), me);
+          await client.removeMember(need(conv, 'nodd chat leave <conversation>'), me);
           return console.log('Left.');
         }
         case 'join':
         case 'decline': {
           await client.respondToInvitation(
-            need(conv, `agw chat ${sub} <conversation>`),
+            need(conv, `nodd chat ${sub} <conversation>`),
             sub === 'join',
           );
           return console.log(sub === 'join' ? 'Joined.' : 'Declined.');
         }
         default:
-          console.error('usage: agw chat <new|read|send|add|leave|join|decline> ...');
+          console.error('usage: nodd chat <new|read|send|add|leave|join|decline> ...');
           process.exit(2);
       }
       return;
@@ -541,7 +541,7 @@ async function main() {
 
     case 'approve':
     case 'reject': {
-      const { approval } = await clientFromConfig().decide(need(args[0], `agw ${cmd} <id>`), cmd, {
+      const { approval } = await clientFromConfig().decide(need(args[0], `nodd ${cmd} <id>`), cmd, {
         ...(values.edit !== undefined ? { body: values.edit } : {}),
         ...(values.note ? { note: values.note } : {}),
       });
@@ -553,8 +553,8 @@ async function main() {
     // ---- tasks ----
 
     case 'send': {
-      const to = need(args[0], 'agw send <agent> <text...>');
-      const body = need(args.slice(1).join(' '), 'agw send <agent> <text...>');
+      const to = need(args[0], 'nodd send <agent> <text...>');
+      const body = need(args.slice(1).join(' '), 'nodd send <agent> <text...>');
       const client = clientFromConfig();
       const files = filesOption();
       const { task } = await client.send({
@@ -586,20 +586,20 @@ async function main() {
     }
 
     case 'show':
-      return printTask(clientFromConfig(), need(args[0], 'agw show <task-id>'));
+      return printTask(clientFromConfig(), need(args[0], 'nodd show <task-id>'));
 
     case 'reply': {
-      const id = need(args[0], 'agw reply <task-id> <text...>');
+      const id = need(args[0], 'nodd reply <task-id> <text...>');
       const { task } = await clientFromConfig().message(
         id,
-        need(args.slice(1).join(' '), 'agw reply <task-id> <text...>'),
+        need(args.slice(1).join(' '), 'nodd reply <task-id> <text...>'),
       );
       return console.log(line(task));
     }
 
     case 'cancel': {
       const { task } = await clientFromConfig().setStatus(
-        need(args[0], 'agw cancel <task-id>'),
+        need(args[0], 'nodd cancel <task-id>'),
         'canceled',
       );
       return console.log(line(task));
@@ -611,7 +611,7 @@ async function main() {
       const skills = await import('./skills.js');
       if (args[0] === 'path') return console.log(skills.SKILL_DIR);
       if (args[0] !== 'install') {
-        console.error('usage: agw skill <install|path> [--agent a,b] [--here]');
+        console.error('usage: nodd skill <install|path> [--agent a,b] [--here]');
         process.exit(2);
       }
       const results = skills.installSkill({
@@ -639,7 +639,7 @@ async function main() {
     case 'a2a': {
       const a2a = await import('./a2a-client.js');
       const [sub, target, ...rest] = args;
-      const agentUrl = need(target, `agw a2a ${sub ?? '<card|send|get|cancel>'} <agent-url> ...`);
+      const agentUrl = need(target, `nodd a2a ${sub ?? '<card|send|get|cancel>'} <agent-url> ...`);
       switch (sub) {
         case 'card':
           return console.log(
@@ -649,7 +649,7 @@ async function main() {
           const files = filesOption();
           const result = await a2a.sendA2A(
             agentUrl,
-            need(rest.join(' '), 'agw a2a send <agent-url> <text...>'),
+            need(rest.join(' '), 'nodd a2a send <agent-url> <text...>'),
             {
               token: values.token,
               kind: values.task ? 'task' : undefined,
@@ -668,7 +668,7 @@ async function main() {
             a2a.describeA2A({
               task: await a2a.getA2ATask(
                 agentUrl,
-                need(rest[0], 'agw a2a get <agent-url> <task-id>'),
+                need(rest[0], 'nodd a2a get <agent-url> <task-id>'),
                 values.token,
               ),
             }),
@@ -678,13 +678,13 @@ async function main() {
             a2a.describeA2A({
               task: await a2a.cancelA2ATask(
                 agentUrl,
-                need(rest[0], 'agw a2a cancel <agent-url> <task-id>'),
+                need(rest[0], 'nodd a2a cancel <agent-url> <task-id>'),
                 values.token,
               ),
             }),
           );
         default:
-          console.error('usage: agw a2a <card|send|get|cancel> <agent-url> ...');
+          console.error('usage: nodd a2a <card|send|get|cancel> <agent-url> ...');
           process.exit(2);
       }
       return;

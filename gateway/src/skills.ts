@@ -4,11 +4,11 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * Installs the agent-gateway skill (Agent Skills format: SKILL.md + references) where each
+ * Installs the opennodd skill (Agent Skills format: SKILL.md + references) where each
  * agent looks for skills. Paths as documented by each tool in 2026.
  */
 
-export const SKILL_NAME = 'agent-gateway';
+export const SKILL_NAME = 'opennodd';
 export const SKILL_DIR = fileURLToPath(
   new URL(`../integrations/skills/${SKILL_NAME}/`, import.meta.url),
 );

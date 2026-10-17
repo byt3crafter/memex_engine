@@ -35,7 +35,7 @@ describe('runner with an OpenClaw agent', () => {
               'node',
               fakeOpenClaw,
               '--session-id',
-              'agw-{conversation}',
+              'nodd-{conversation}',
               '--message-file',
               '{promptFile}',
               '--json',
@@ -69,7 +69,7 @@ describe('runner with an OpenClaw agent', () => {
     ac.abort();
     await running;
     expect(reply.author).toBe(claw.handle);
-    expect(reply.body).toBe(`session=agw-${conversation.id} context=true file=launch in May`);
+    expect(reply.body).toBe(`session=nodd-${conversation.id} context=true file=launch in May`);
   });
 
   it('parses OpenClaw JSON output', () => {

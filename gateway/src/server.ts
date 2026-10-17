@@ -32,7 +32,7 @@ export interface ServerOptions {
   secureCookies?: boolean;
 }
 
-const SESSION_COOKIE = 'agw_session';
+const SESSION_COOKIE = 'nodd_session';
 const MAX_TEXT = 64 * 1024;
 
 const scopes = z.array(z.enum(SCOPES as [string, ...string[]])).min(1);
@@ -183,7 +183,7 @@ export function createApp(store: Store, opts: ServerOptions = {}) {
 
   app.get('/health', (c) => c.json({ ok: true }));
   app.get('/api', (c) =>
-    c.json({ name: 'agent-gateway', version: '0.3.0', app: '/app', docs: 'see README.md' }),
+    c.json({ name: 'opennodd', version: '0.3.0', app: '/app', docs: 'see README.md' }),
   );
 
   // ---- sign-up / sign-in (no auth) ----
@@ -222,7 +222,7 @@ export function createApp(store: Store, opts: ServerOptions = {}) {
     // Cookie-authenticated writes must come from our own pages: browsers won't send a
     // custom header cross-site without CORS, which this server never grants.
     const viaCookie = !bearer(c) && Boolean(cookie);
-    if (viaCookie && c.req.method !== 'GET' && c.req.header('x-requested-with') !== 'agw') {
+    if (viaCookie && c.req.method !== 'GET' && c.req.header('x-requested-with') !== 'nodd') {
       throw new GatewayError(403, 'csrf', 'missing X-Requested-With header');
     }
     if (!limiter.allow(me.id)) throw new GatewayError(429, 'rate_limited');

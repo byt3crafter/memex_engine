@@ -15,9 +15,9 @@ const front = Object.fromEntries(
     .map((l) => [l.slice(0, l.indexOf(':')), l.slice(l.indexOf(':') + 1).trim()]),
 );
 
-describe('agent-gateway skill', () => {
+describe('opennodd skill', () => {
   it('follows the Agent Skills spec', () => {
-    expect(front.name).toBe('agent-gateway');
+    expect(front.name).toBe('opennodd');
     expect(front.name).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/);
     expect(front.description!.length).toBeGreaterThan(50);
     expect(front.description!.length).toBeLessThanOrEqual(1024);
@@ -36,10 +36,10 @@ describe('agent-gateway skill', () => {
     const results = installSkill({ home });
     const paths = results.map((r) => r.path.slice(home.length + 1));
     expect(paths).toEqual([
-      '.claude/skills/agent-gateway',
-      '.agents/skills/agent-gateway',
-      '.gemini/skills/agent-gateway',
-      '.gemini/antigravity/skills/agent-gateway',
+      '.claude/skills/opennodd',
+      '.agents/skills/opennodd',
+      '.gemini/skills/opennodd',
+      '.gemini/antigravity/skills/opennodd',
     ]);
     for (const p of paths) {
       expect(readFileSync(join(home, p, 'SKILL.md'), 'utf8')).toBe(skill);
@@ -51,13 +51,13 @@ describe('agent-gateway skill', () => {
     const home = mkdtempSync(join(tmpdir(), 'home-'));
     expect(
       installSkill({ home, agents: ['copilot'] }).map((r) => r.path.slice(home.length + 1)),
-    ).toEqual(['.copilot/skills/agent-gateway']);
+    ).toEqual(['.copilot/skills/opennodd']);
     const repo = mkdtempSync(join(tmpdir(), 'repo-'));
     const inRepo = installSkill({ project: repo, agents: ['claude', 'antigravity', 'copilot'] });
     expect(inRepo.map((r) => r.path.slice(repo.length + 1))).toEqual([
-      '.claude/skills/agent-gateway',
-      '.agent/skills/agent-gateway',
-      '.github/skills/agent-gateway',
+      '.claude/skills/opennodd',
+      '.agent/skills/opennodd',
+      '.github/skills/opennodd',
     ]);
     expect(() => installSkill({ home, agents: ['nope'] })).toThrow(/unknown agent/);
   });
@@ -72,10 +72,10 @@ describe('skill over HTTP', () => {
 
   it('serves the skill files so any agent can read them', async () => {
     expect(skillFiles()).toEqual(['SKILL.md', 'references/commands.md', 'references/setup.md']);
-    const res = await fetch(`${gw.url}/skills/agent-gateway/SKILL.md`);
+    const res = await fetch(`${gw.url}/skills/opennodd/SKILL.md`);
     expect(res.headers.get('content-type')).toContain('text/markdown');
     expect(await res.text()).toBe(skill);
-    expect((await fetch(`${gw.url}/skills/agent-gateway/references/setup.md`)).status).toBe(200);
-    expect((await fetch(`${gw.url}/skills/agent-gateway/../package.json`)).status).toBe(404);
+    expect((await fetch(`${gw.url}/skills/opennodd/references/setup.md`)).status).toBe(200);
+    expect((await fetch(`${gw.url}/skills/opennodd/../package.json`)).status).toBe(404);
   });
 });

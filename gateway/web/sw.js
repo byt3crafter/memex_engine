@@ -1,5 +1,5 @@
 // App shell offline; the API always goes to the network.
-const CACHE = 'agw-shell-v3';
+const CACHE = 'nodd-shell-v3';
 const SHELL = [
   '/app/',
   '/app/app.js',

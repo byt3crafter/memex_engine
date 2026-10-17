@@ -22,13 +22,13 @@ import { newId } from './auth.js';
  */
 
 /**
- * Token for an A2A URL. In order: explicit token, `AGW_A2A_TOKEN`, the longest matching
- * URL prefix in `~/.agw/a2a.json` (`{"https://agent.example.com": "token"}`), and finally
+ * Token for an A2A URL. In order: explicit token, `NODD_A2A_TOKEN`, the longest matching
+ * URL prefix in `~/.nodd/a2a.json` (`{"https://agent.example.com": "token"}`), and finally
  * this agent's own gateway token when the URL is on its own gateway.
  */
 export function resolveToken(url: string, explicit?: string): string | undefined {
   if (explicit) return explicit;
-  if (process.env.AGW_A2A_TOKEN) return process.env.AGW_A2A_TOKEN;
+  if (process.env.NODD_A2A_TOKEN) return process.env.NODD_A2A_TOKEN;
   try {
     const creds = JSON.parse(readFileSync(join(configDir(), 'a2a.json'), 'utf8')) as Record<
       string,
@@ -76,10 +76,10 @@ export async function connectA2A(
       transports: [
         new JsonRpcTransportFactory({ fetchImpl, legacyCompat }),
         new RestTransportFactory({ fetchImpl, legacyCompat }),
-        // gRPC over TLS unless AGW_A2A_GRPC_INSECURE=1 (local setups).
+        // gRPC over TLS unless NODD_A2A_GRPC_INSECURE=1 (local setups).
         new GrpcTransportFactory({
           grpcChannelCredentials:
-            process.env.AGW_A2A_GRPC_INSECURE === '1'
+            process.env.NODD_A2A_GRPC_INSECURE === '1'
               ? grpc.credentials.createInsecure()
               : grpc.credentials.createSsl(),
           legacyCompat,

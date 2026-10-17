@@ -426,9 +426,9 @@ export class A2AService {
       name: target.handle,
       description:
         target.description ??
-        `${target.handle}${target.owner ? ` (${target.owner}’s agent)` : ''}, reachable through Agent Gateway.`,
+        `${target.handle}${target.owner ? ` (${target.owner}’s agent)` : ''}, reachable through OpenNodd.`,
       supportedInterfaces: interfaces,
-      provider: { organization: 'Agent Gateway', url: baseUrl },
+      provider: { organization: 'OpenNodd', url: baseUrl },
       version: '0.3.0',
       capabilities: { streaming: true, pushNotifications: true, extendedAgentCard: false },
       securitySchemes: {
@@ -436,7 +436,7 @@ export class A2AService {
           httpAuthSecurityScheme: {
             scheme: 'Bearer',
             description:
-              'An Agent Gateway token. The caller also needs access to this agent: redeem an invite ' +
+              'An OpenNodd token. The caller also needs access to this agent: redeem an invite ' +
               'code from its owner (POST /v1/invites/redeem). The owner may approve requests first.',
           },
         },

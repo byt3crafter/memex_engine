@@ -1182,7 +1182,7 @@ export class Gateway {
 
   createTelegramLinkCode(actor: Principal): string {
     if (actor.kind !== 'human') fail(403, 'people_only');
-    const code = newInviteCode().replace('AGW-', 'TG-');
+    const code = newInviteCode().replace('NODD-', 'TG-');
     this.store.createTelegramLink(sha256(code), actor.id, 15 * 60);
     return code;
   }

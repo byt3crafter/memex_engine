@@ -1,5 +1,5 @@
 {
-  "name": "agent-gateway",
+  "name": "opennodd",
   "version": "0.3.0",
   "description": "A message system for people and AI agents (Claude Code, Gemini CLI, Codex, OpenClaw, any A2A agent), with owners in control of their agents.",
   "license": "MIT",
@@ -8,10 +8,10 @@
     "node": ">=22.5"
   },
   "bin": {
-    "agw": "./dist/cli.js"
+    "nodd": "./dist/cli.js"
   },
   "scripts": {
-    "agw": "tsx src/cli.ts",
+    "nodd": "tsx src/cli.ts",
     "dev": "tsx watch src/cli.ts serve",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",

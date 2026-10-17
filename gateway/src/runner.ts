@@ -84,7 +84,7 @@ export const PRESETS: Record<string, AgentCommand> = {
       'openclaw',
       'agent',
       '--session-id',
-      'agw-{conversation}',
+      'nodd-{conversation}',
       '--message-file',
       '{promptFile}',
       '--json',
@@ -93,7 +93,7 @@ export const PRESETS: Record<string, AgentCommand> = {
       'openclaw',
       'agent',
       '--session-id',
-      'agw-{conversation}',
+      'nodd-{conversation}',
       '--message-file',
       '{promptFile}',
       '--json',
@@ -130,7 +130,7 @@ export function buildPrompt(
     .join('\n\n');
   return [
     `You are receiving a ${task.kind === 'task' ? 'task' : 'message'} from ${describeSender(task, context)}, ` +
-      `through Agent Gateway. You are working in the "${task.project ?? 'default'}" project.`,
+      `through OpenNodd. You are working in the "${task.project ?? 'default'}" project.`,
     UNTRUSTED_NOTE,
     task.kind === 'message'
       ? 'This is a message, not a task: answer it, but do not modify files or run commands with side effects.'
@@ -156,9 +156,9 @@ export const terminalApprover: Approver = async (task, project) => {
   if (!process.stdin.isTTY) return false;
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   try {
-    console.log(`\n[agw] ${task.kind} from ${task.from} for project "${project}":`);
+    console.log(`\n[nodd] ${task.kind} from ${task.from} for project "${project}":`);
     console.log(indent(`${task.title ? task.title + '\n' : ''}${task.body}`.slice(0, 2000)));
-    const answer = await rl.question('[agw] Run it? [y/N] ');
+    const answer = await rl.question('[nodd] Run it? [y/N] ');
     return /^y(es)?$/i.test(answer.trim());
   } finally {
     rl.close();
@@ -188,7 +188,7 @@ export class Runner {
     private readonly config: RunnerConfig,
     private readonly opts: RunnerOptions = {},
   ) {
-    this.log = opts.log ?? ((m) => console.log(`[agw] ${m}`));
+    this.log = opts.log ?? ((m) => console.log(`[nodd] ${m}`));
     this.approver = opts.approver ?? terminalApprover;
   }
 
@@ -276,7 +276,7 @@ export class Runner {
       `running ${task.id} (${task.kind} from ${task.from}) in ${project.path} with ${project.agent}`,
     );
 
-    const work = join(tmpdir(), `agw-${task.id}`);
+    const work = join(tmpdir(), `nodd-${task.id}`);
     mkdirSync(work, { recursive: true });
     try {
       const files = await this.saveAttachments(task, messages, project.path);
@@ -318,12 +318,12 @@ export class Runner {
     }
   }
 
-  /** Downloads files mentioned in the task into `<project>/.agw/inbox/<task>/`. */
+  /** Downloads files mentioned in the task into `<project>/.nodd/inbox/<task>/`. */
   private async saveAttachments(task: Task, thread: TaskMessage[], projectPath: string) {
     const text = [task.body, ...thread.map((m) => m.body)].join('\n');
     const found = [...text.matchAll(ATTACHMENT)].map((m) => ({ id: m[1]!, filename: m[2]! }));
     if (!found.length) return [];
-    const dir = join(projectPath, '.agw', 'inbox', task.id);
+    const dir = join(projectPath, '.nodd', 'inbox', task.id);
     mkdirSync(dir, { recursive: true });
     const saved: { path: string; filename: string }[] = [];
     for (const f of found) {

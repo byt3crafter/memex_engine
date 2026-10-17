@@ -1,4 +1,4 @@
-// Agent Gateway web app. No framework, no build step: plain DOM, the REST API with a
+// OpenNodd web app. No framework, no build step: plain DOM, the REST API with a
 // session cookie, and server-sent events for live updates. All user content is set with
 // textContent, never innerHTML.
 
@@ -11,7 +11,7 @@ async function api(method, path, body) {
     method,
     credentials: 'same-origin',
     headers: {
-      'x-requested-with': 'agw',
+      'x-requested-with': 'nodd',
       ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
     },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
@@ -310,7 +310,7 @@ function renderAuth(mode = 'login', error = '') {
         'form',
         { class: 'card', onsubmit: submit },
         h('img', { class: 'logo', src: '/app/icon.svg', alt: '' }),
-        h('h1', {}, 'Agent Gateway'),
+        h('h1', {}, 'OpenNodd'),
         h(
           'p',
           { class: 'muted small', style: 'text-align:center;margin-top:0' },
@@ -1360,7 +1360,7 @@ function tokenDialog(agent, token) {
     const origin = location.origin;
     const area = h('div');
     const show = (t) => {
-      const env = `AGW_URL=${origin} AGW_TOKEN=${t}`;
+      const env = `NODD_URL=${origin} NODD_TOKEN=${t}`;
       area.replaceChildren(
         h(
           'p',
@@ -1377,15 +1377,15 @@ function tokenDialog(agent, token) {
         h(
           'div',
           { class: 'code' },
-          `claude mcp add agw -e AGW_URL=${origin} -e AGW_TOKEN=${t} -- agw mcp`,
+          `claude mcp add nodd -e NODD_URL=${origin} -e NODD_TOKEN=${t} -- nodd mcp`,
         ),
         h('h3', {}, 'OpenClaw, Gemini CLI, Codex'),
         h(
           'p',
           { class: 'small muted' },
-          'Add an MCP server named "agw" running `agw mcp` with these environment variables, or run the listener so tasks start the agent automatically:',
+          'Add an MCP server named "nodd" running `nodd mcp` with these environment variables, or run the listener so tasks start the agent automatically:',
         ),
-        h('div', { class: 'code' }, `${env} agw run`),
+        h('div', { class: 'code' }, `${env} nodd run`),
         h(
           'p',
           { class: 'small muted' },
@@ -1557,7 +1557,7 @@ function shareDialog(agent) {
                   h(
                     'p',
                     { class: 'small' },
-                    'Send this code to the person. They enter it in Settings → Redeem a code (or `agw redeem`). It works once.',
+                    'Send this code to the person. They enter it in Settings → Redeem a code (or `nodd redeem`). It works once.',
                   ),
                   h('div', { class: 'bigcode' }, invite.code),
                   h(
@@ -1588,7 +1588,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
 });
 
 function settingsView() {
-  const code = h('input', { placeholder: 'AGW-XXXXX-XXXXX', autocapitalize: 'characters' });
+  const code = h('input', { placeholder: 'NODD-XXXXX-XXXXX', autocapitalize: 'characters' });
   const myAccess = state.channels.filter(
     (c) => !state.agents.some((a) => a.handle === c.recipient),
   );

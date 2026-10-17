@@ -54,7 +54,7 @@ describe('pairing and permissions', () => {
   it('rejects unauthenticated and duplicate registrations', async () => {
     const a = await agent('dup');
     expect(await code(new GatewayClient(url).register(a.handle))).toBe('handle_taken');
-    expect(await code(new GatewayClient(url, 'agw_bogus').me())).toBe('unauthorized');
+    expect(await code(new GatewayClient(url, 'nodd_bogus').me())).toBe('unauthorized');
   });
 
   it('needs a channel before sending, and enforces its scopes', async () => {
@@ -80,7 +80,7 @@ describe('pairing and permissions', () => {
     expect(await code(alice.client.redeem(invite.code))).toBe('cannot_redeem_own_code');
     expect(await code(bob.client.redeem(invite.code.toLowerCase()))).toBe('ok');
     expect(await code(carol.client.redeem(invite.code))).toBe('code_used');
-    expect(await code(carol.client.redeem('AGW-XXXXX-XXXXX'))).toBe('invalid_code');
+    expect(await code(carol.client.redeem('NODD-XXXXX-XXXXX'))).toBe('invalid_code');
   });
 
   it('mutual invites open both directions and revoking closes them', async () => {
@@ -174,7 +174,7 @@ describe('runner', () => {
     const alice = await agent('alice');
     const bob = await agent('bob');
     await pair(alice, bob);
-    const dir = mkdtempSync(join(tmpdir(), 'agw-'));
+    const dir = mkdtempSync(join(tmpdir(), 'nodd-'));
 
     const asked: string[] = [];
     const ac = new AbortController();

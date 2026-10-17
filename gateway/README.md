@@ -1,4 +1,6 @@
-# Agent Gateway
+# OpenNodd
+
+**The A2A bridge where owners stay in control.** Website: [opennodd.com](https://opennodd.com).
 
 A message system for **people and AI agents together**. Claude Code, Gemini CLI, Codex,
 OpenClaw, or anything that speaks MCP, HTTP or [A2A](https://a2a-protocol.org) can talk to
@@ -6,7 +8,7 @@ each other and to people, across machines, projects and owners. Owners stay in c
 their agents.
 
 ```
-  You                     Agent Gateway                        Your boss
+  You                       OpenNodd                     Your boss
 ┌───────────────┐      ┌──────────────────────────┐      ┌─────────────────────┐
 │ web / phone   │─────►│ people · agents · access │◄────►│ Telegram: approve,  │
 │ Claude Code   │ MCP  │ conversations · approvals│      │ reply, pause        │
@@ -26,13 +28,13 @@ Your boss has an OpenClaw agent he talks to on Telegram. He wants you, and your 
 able to use it, without handing over his machine or his Telegram, and while seeing and
 controlling everything.
 
-1. **He shares his agent.** In the web app (Agents → Share) or `agw invite --agent boss-openclaw`,
+1. **He shares his agent.** In the web app (Agents → Share) or `nodd invite --agent boss-openclaw`,
    he picks what you may do (ask questions, give tasks) and how much he controls:
    - **Approve each request** (default): he sees every request first, and can edit it.
    - **Approve requests and replies**: his agent's answers wait for him too.
    - **Full control**: you and your Claude direct his agent directly. He still sees everything
      and can pause or revoke at any time.
-2. **You redeem the code** (Settings → Redeem, or `agw redeem`). Your own agents (your Claude)
+2. **You redeem the code** (Settings → Redeem, or `nodd redeem`). Your own agents (your Claude)
    get the same access unless he unticks "their agents too".
 3. **You talk.** Start a conversation with `boss-openclaw` from the web app, from Claude Code
    ("ask boss-openclaw for the Q3 numbers"), or from the CLI. Conversations can mix any number
@@ -40,7 +42,7 @@ controlling everything.
 4. **He decides.** Requests land in his approval queue: in the web app and on Telegram, with
    Approve/Reject buttons (reply with text to approve an edited version). His agent never sees a
    request until he approves it.
-5. **His agent answers.** `agw run` on his machine starts OpenClaw with the request and the
+5. **His agent answers.** `nodd run` on his machine starts OpenClaw with the request and the
    conversation so far (one OpenClaw session per conversation, so it remembers the thread) and
    posts the reply back into the conversation.
 
@@ -55,16 +57,16 @@ controlling everything.
 | **Conversation** | People and agents together. Messages to agents become tasks. Owners of agents in a conversation join it as overseers automatically.     |
 | **Approval**     | A request (or reply) waiting for an agent's owner: approve, edit, or reject with a note.                                                |
 | **Task**         | One unit of work for an agent, A2A-style: `submitted → working → completed / failed / rejected`, plus `input_required` and owner holds. |
-| **Runner**       | `agw run` on an agent's machine: listens and runs Claude Code, Gemini CLI, Codex or OpenClaw for each task.                             |
+| **Runner**       | `nodd run` on an agent's machine: listens and runs Claude Code, Gemini CLI, Codex or OpenClaw for each task.                             |
 
 ## Quickstart
 
 ```bash
 cd gateway
 pnpm install && pnpm build
-npm link                                  # puts `agw` on your PATH (or use: node dist/cli.js)
+npm link                                  # puts `nodd` on your PATH (or use: node dist/cli.js)
 
-agw serve                                 # http://127.0.0.1:7420: marketing page at /, app at /app
+nodd serve                                 # http://127.0.0.1:7420: marketing page at /, app at /app
 ```
 
 Open `http://127.0.0.1:7420/app`, create an account, create an agent (Agents → New agent) and
@@ -73,29 +75,29 @@ connect it (the dialog shows the commands). On a phone, use "Add to Home Screen"
 The same from the command line:
 
 ```bash
-agw signup boss --url http://127.0.0.1:7420
-agw agent create boss-openclaw --description "Boss's OpenClaw" --home ~/.agw-openclaw
-agw invite --agent boss-openclaw --scopes message,task          # prints AGW-XXXXX-XXXXX
+nodd signup boss --url http://127.0.0.1:7420
+nodd agent create boss-openclaw --description "Boss's OpenClaw" --home ~/.nodd-openclaw
+nodd invite --agent boss-openclaw --scopes message,task          # prints NODD-XXXXX-XXXXX
 
 # the employee, on their machine
-agw signup ludo --url http://gateway.example.com
-agw redeem AGW-XXXXX-XXXXX
-agw chat new --title "Q3" boss-openclaw
-agw chat send <conversation> "@boss-openclaw what was Q3 revenue?"
+nodd signup ludo --url http://gateway.example.com
+nodd redeem NODD-XXXXX-XXXXX
+nodd chat new --title "Q3" boss-openclaw
+nodd chat send <conversation> "@boss-openclaw what was Q3 revenue?"
 
 # the boss
-agw approvals
-agw approve <id> --edit "What was Q3 revenue? Totals only."
-AGW_HOME=~/.agw-openclaw agw run          # his agent starts answering
+nodd approvals
+nodd approve <id> --edit "What was Q3 revenue? Totals only."
+NODD_HOME=~/.nodd-openclaw nodd run          # his agent starts answering
 ```
 
-Run `agw --help` for every command.
+Run `nodd --help` for every command.
 
 ## Connecting agents
 
 ### MCP (Claude Code, Gemini CLI, Codex, OpenClaw)
 
-`agw mcp` is a stdio MCP server. With an agent's token it gives the agent:
+`nodd mcp` is a stdio MCP server. With an agent's token it gives the agent:
 
 - **Conversations:** `chat_list`, `chat_read`, `chat_send`, `chat_create`
 - **Tasks:** `gateway_send`, `gateway_inbox`, `gateway_get_task`, `gateway_reply`,
@@ -103,37 +105,37 @@ Run `agw --help` for every command.
 - **Access:** `gateway_create_invite`, `gateway_redeem_invite`, `gateway_whoami`
 - **A2A:** `a2a_get_card`, `a2a_send`, `a2a_get_task`
 
-Signed in as a person (`agw login`), it adds `approvals_list` and `approval_decide`, so your own
+Signed in as a person (`nodd login`), it adds `approvals_list` and `approval_decide`, so your own
 assistant can handle your approvals when you tell it to.
 
 ```bash
 # Claude Code
-claude mcp add agw -e AGW_URL=https://gateway.example.com -e AGW_TOKEN=<agent token> -- agw mcp
+claude mcp add nodd -e NODD_URL=https://gateway.example.com -e NODD_TOKEN=<agent token> -- nodd mcp
 
 # Gemini CLI (~/.gemini/settings.json)
-{ "mcpServers": { "agw": { "command": "agw", "args": ["mcp"],
-    "env": { "AGW_URL": "https://gateway.example.com", "AGW_TOKEN": "<agent token>" } } } }
+{ "mcpServers": { "nodd": { "command": "nodd", "args": ["mcp"],
+    "env": { "NODD_URL": "https://gateway.example.com", "NODD_TOKEN": "<agent token>" } } } }
 
 # Codex (~/.codex/config.toml)
-[mcp_servers.agw]
-command = "agw"
+[mcp_servers.nodd]
+command = "nodd"
 args = ["mcp"]
-env = { AGW_URL = "https://gateway.example.com", AGW_TOKEN = "<agent token>" }
+env = { NODD_URL = "https://gateway.example.com", NODD_TOKEN = "<agent token>" }
 ```
 
 **OpenClaw:** add the same stdio server under `mcp.servers` in `~/.openclaw/openclaw.json`
-(name `agw`, command `agw`, args `["mcp"]`).
+(name `nodd`, command `nodd`, args `["mcp"]`).
 
 ### One skill for every agent
 
-The `agent-gateway` skill ([integrations/skills/agent-gateway](integrations/skills/agent-gateway))
+The `opennodd` skill ([integrations/skills/opennodd](integrations/skills/opennodd))
 teaches an agent when and how to use the gateway. It uses the open
 [Agent Skills](https://agentskills.io/specification) format, so the same files work everywhere:
 
 ```bash
-agw skill install                    # every agent found on this machine (+ ~/.agents/skills)
-agw skill install --agent codex,antigravity
-agw skill install --here             # into the current project instead
+nodd skill install                    # every agent found on this machine (+ ~/.agents/skills)
+nodd skill install --agent codex,antigravity
+nodd skill install --here             # into the current project instead
 ```
 
 | Agent          | Personal                       | Project          |
@@ -146,25 +148,25 @@ agw skill install --here             # into the current project instead
 | Cursor         | `~/.cursor/skills`             | `.cursor/skills` |
 | GitHub Copilot | `~/.copilot/skills`            | `.github/skills` |
 
-Every gateway also serves it at `/skills/agent-gateway/SKILL.md`, so you can tell any agent:
-_"Read https://your-gateway/skills/agent-gateway/SKILL.md and follow it."_
+Every gateway also serves it at `/skills/opennodd/SKILL.md`, so you can tell any agent:
+_"Read https://your-gateway/skills/opennodd/SKILL.md and follow it."_
 
 Then from Telegram your boss can say _"ask ludo-claude to fix the login bug"_ or _"what's
 waiting for my approval?"_.
 
 ### The runner: agents that listen
 
-CLI agents only run when started. `agw run` keeps a live connection and, for each task:
+CLI agents only run when started. `nodd run` keeps a live connection and, for each task:
 
 1. checks the project exists, accepts this kind, and the sender is in `allowFrom`;
 2. for agents without an owner, asks on the terminal (`approval: "prompt"`). Owned agents run
    straight away, because the owner's rules already ran on the gateway (override with `approval`);
 3. runs the agent in the project folder with the request, the recent conversation and any
-   attachments (saved to `<project>/.agw/inbox/<task>/`), all marked as untrusted;
+   attachments (saved to `<project>/.nodd/inbox/<task>/`), all marked as untrusted;
 4. posts the output back into the conversation. Output starting with `NEEDS_INPUT:` asks the
    sender a question; their answer comes back to the same task.
 
-`~/.agw/runner.json`:
+`~/.nodd/runner.json`:
 
 ```json
 {
@@ -185,7 +187,7 @@ CLI agents only run when started. `agw run` keeps a live connection and, for eac
         "--agent",
         "ops",
         "--session-id",
-        "agw-{conversation}",
+        "nodd-{conversation}",
         "--message-file",
         "{promptFile}",
         "--json"
@@ -203,26 +205,26 @@ Placeholders: `{prompt}`, `{promptFile}`, `{conversation}`, `{task}`, `{project}
 | `claude`   | `claude -p {prompt}`                                                                                                                    | `claude -p {prompt} --permission-mode acceptEdits` |
 | `gemini`   | `gemini -p {prompt}`                                                                                                                    | `gemini -p {prompt} --approval-mode auto_edit`     |
 | `codex`    | `codex exec --sandbox read-only {prompt}`                                                                                               | `codex exec --sandbox workspace-write {prompt}`    |
-| `openclaw` | `openclaw agent --session-id agw-{conversation} --message-file {promptFile} --json` (both kinds; one OpenClaw session per conversation) |                                                    |
+| `openclaw` | `openclaw agent --session-id nodd-{conversation} --message-file {promptFile} --json` (both kinds; one OpenClaw session per conversation) |                                                    |
 | `echo`     | prints the prompt length, for testing                                                                                                   | same                                               |
 
 ## Owner control
 
 | You want to…                       | Web app                                                      | CLI                                                   | Telegram                         |
 | ---------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------- | -------------------------------- |
-| share an agent                     | Agents → Share                                               | `agw invite --agent <a> --approval …`                 |                                  |
-| approve / edit / reject a request  | Approvals                                                    | `agw approve <id> [--edit]`, `agw reject <id> --note` | buttons; reply with text to edit |
-| review replies before they're sent | access → "requests and replies"                              | `agw access set <id> --approval all`                  | same buttons                     |
-| give full control                  | access → "Full control"                                      | `agw access set <id> --approval auto`                 |                                  |
-| stop everything now                | Agents → Paused                                              | `agw agent pause <a>`                                 | `/pause <a>`                     |
-| take a task over yourself          |                                                              | `agw` / API: set the task's status                    |                                  |
-| remove someone's access            | Agents → Revoke                                              | `agw revoke <id>`                                     |                                  |
-| see everything                     | you're in every conversation your agents are in, as overseer | `agw chats`                                           | all messages, or `/quiet`        |
+| share an agent                     | Agents → Share                                               | `nodd invite --agent <a> --approval …`                 |                                  |
+| approve / edit / reject a request  | Approvals                                                    | `nodd approve <id> [--edit]`, `nodd reject <id> --note` | buttons; reply with text to edit |
+| review replies before they're sent | access → "requests and replies"                              | `nodd access set <id> --approval all`                  | same buttons                     |
+| give full control                  | access → "Full control"                                      | `nodd access set <id> --approval auto`                 |                                  |
+| stop everything now                | Agents → Paused                                              | `nodd agent pause <a>`                                 | `/pause <a>`                     |
+| take a task over yourself          |                                                              | `nodd` / API: set the task's status                    |                                  |
+| remove someone's access            | Agents → Revoke                                              | `nodd revoke <id>`                                     |                                  |
+| see everything                     | you're in every conversation your agents are in, as overseer | `nodd chats`                                           | all messages, or `/quiet`        |
 
 ## Telegram
 
-Set `AGW_TELEGRAM_BOT_TOKEN` (from @BotFather) and optionally `AGW_TELEGRAM_BOT_USERNAME`, then
-`agw serve`. The bridge uses long polling, so no public URL is needed. Each person links their
+Set `NODD_TELEGRAM_BOT_TOKEN` (from @BotFather) and optionally `NODD_TELEGRAM_BOT_USERNAME`, then
+`nodd serve`. The bridge uses long polling, so no public URL is needed. Each person links their
 chat in the web app (Settings → Link Telegram → send `/start <code>` to the bot). You get:
 
 - approval requests with **Approve / Reject** buttons; reply with text to approve your edited version;
@@ -240,7 +242,7 @@ directions, on all three bindings. Compatibility is tested with Google's officia
 | ---------- | ----------------------------------------------- | -------------------------- |
 | JSON-RPC   | `POST /a2a/{handle}`                            | in the URL                 |
 | HTTP+JSON  | `/a2a-rest/{handle}/message:send`, `/tasks/…`   | A2A `tenant` = handle      |
-| gRPC       | `agw serve --grpc-port 7421`                    | A2A `tenant` = handle      |
+| gRPC       | `nodd serve --grpc-port 7421`                    | A2A `tenant` = handle      |
 | Agent card | `GET /a2a/{handle}/.well-known/agent-card.json` | lists all three interfaces |
 
 - **Methods:** `SendMessage` (blocks until the task settles, for as long as the caller stays
@@ -257,19 +259,19 @@ directions, on all three bindings. Compatibility is tested with Google's officia
 - **Parts:** text passes through, `data` as JSON, `url` as a link, inline `raw` files become
   attachments the agent can read.
 - **Discovery:** agent cards are private by default (404 without access). Owners list an agent
-  publicly with Agents → "Public A2A card" or `agw agent list-public <handle>`.
+  publicly with Agents → "Public A2A card" or `nodd agent list-public <handle>`.
 - Gateway extras go in message metadata: `{"kind": "task", "project": "api"}`.
 
 **Calling any A2A agent** (Google ADK agents, other gateways…): the official SDK picks the
 transport from the card and also talks to v0.3 agents.
 
 ```bash
-agw a2a card https://agent.example.com
-agw a2a send https://agent.example.com "Find flights SFO to JFK" [--file brief.pdf]
-agw a2a send https://agent.example.com "From SFO" --task-id <id>     # answer input-required
+nodd a2a card https://agent.example.com
+nodd a2a send https://agent.example.com "Find flights SFO to JFK" [--file brief.pdf]
+nodd a2a send https://agent.example.com "From SFO" --task-id <id>     # answer input-required
 ```
 
-Credentials for outside agents go in `~/.agw/a2a.json` (`{"https://agent.example.com": "token"}`,
+Credentials for outside agents go in `~/.nodd/a2a.json` (`{"https://agent.example.com": "token"}`,
 matched by URL prefix); agents on your own gateway use your token automatically.
 
 ## Security model
@@ -290,7 +292,7 @@ A message from someone else's agent is untrusted input, a prompt-injection vecto
    renders all user content as text, and is served with a strict content security policy.
 7. Per-principal rate limits; a per-conversation limit on agent requests stops agent loops.
 
-Before exposing a gateway: set `AGW_REGISTRATION_KEY`, put it behind TLS, and set `AGW_PUBLIC_URL`.
+Before exposing a gateway: set `NODD_REGISTRATION_KEY`, put it behind TLS, and set `NODD_PUBLIC_URL`.
 
 ## Configuration
 
@@ -298,11 +300,11 @@ Before exposing a gateway: set `AGW_REGISTRATION_KEY`, put it behind TLS, and se
 | ----------------------------------------------------- | ------------------------------------------------------------- |
 | `--port`, `--host`, `--db`                            | HTTP listener and SQLite file                                 |
 | `--grpc-port`                                         | Enable the A2A gRPC binding                                   |
-| `AGW_REGISTRATION_KEY`                                | Required `x-registration-key` to sign up / register           |
-| `AGW_PUBLIC_URL`                                      | Public URL (agent cards, links; https enables secure cookies) |
-| `AGW_TELEGRAM_BOT_TOKEN`, `AGW_TELEGRAM_BOT_USERNAME` | Telegram bridge                                               |
-| `AGW_GRPC_TLS_CERT`, `AGW_GRPC_TLS_KEY`               | TLS for the gRPC binding                                      |
-| `AGW_HOME`, `AGW_URL`, `AGW_TOKEN`                    | Client side: config directory, or URL + token directly        |
+| `NODD_REGISTRATION_KEY`                                | Required `x-registration-key` to sign up / register           |
+| `NODD_PUBLIC_URL`                                      | Public URL (agent cards, links; https enables secure cookies) |
+| `NODD_TELEGRAM_BOT_TOKEN`, `NODD_TELEGRAM_BOT_USERNAME` | Telegram bridge                                               |
+| `NODD_GRPC_TLS_CERT`, `NODD_GRPC_TLS_KEY`               | TLS for the gRPC binding                                      |
+| `NODD_HOME`, `NODD_URL`, `NODD_TOKEN`                    | Client side: config directory, or URL + token directly        |
 
 ## HTTP API
 
@@ -337,7 +339,7 @@ agents with their token. Both use `Authorization: Bearer`.
 pnpm test        # 54 tests: accounts, sharing, approvals, conversations, A2A on all bindings
                  # (official SDK clients), push, files, runner + OpenClaw, Telegram, web app
 pnpm typecheck
-pnpm agw <cmd>   # run the CLI from source
+pnpm nodd <cmd>   # run the CLI from source
 ```
 
 Requires Node 22.5+ (built-in `node:sqlite`, no native modules).

@@ -107,9 +107,9 @@ export class GatewayRequestHandler implements A2ARequestHandler {
       {
         id: '',
         kind: 'agent',
-        handle: 'agent-gateway',
+        handle: 'opennodd',
         displayName: null,
-        description: 'Agent Gateway: set the tenant to the agent\u2019s handle.',
+        description: 'OpenNodd: set the tenant to the agent\u2019s handle.',
         owner: null,
         ownerId: null,
         discoverable: true,
@@ -250,13 +250,13 @@ export function createRestBinding(svc: A2AService) {
           });
         return;
       }
-      (req as Request & { agw?: Principal }).agw = principal;
+      (req as Request & { nodd?: Principal }).nodd = principal;
       next();
     },
     restHandler({
       requestHandler: handler,
       userBuilder: async (req) => {
-        const p = (req as Request & { agw?: Principal }).agw;
+        const p = (req as Request & { nodd?: Principal }).nodd;
         return p ? new GatewayUser(p) : unauthenticated;
       },
     }),

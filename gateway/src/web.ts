@@ -54,7 +54,7 @@ export function mountWebApp(app: Hono<any>): void {
       ...(name === 'sw.js' ? { 'service-worker-allowed': '/app/' } : {}),
     });
 
-  // The agent-gateway skill, readable by any agent: "read <gateway>/skills/agent-gateway/SKILL.md".
+  // The opennodd skill, readable by any agent: "read <gateway>/skills/opennodd/SKILL.md".
   const files = new Set(skillFiles());
   app.get(`/skills/${SKILL_NAME}/*`, (c) => {
     const path = c.req.path.slice(`/skills/${SKILL_NAME}/`.length) || 'SKILL.md';
